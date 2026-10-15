@@ -42,6 +42,7 @@ body.is-touch #hint{display:none}
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 const $=id=>document.getElementById(id);
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch)document.body.classList.add('is-touch');
@@ -116,6 +117,10 @@ const rustT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd
 const paperT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.85,1);px(g,x,y,220*v,205*v,170*v);}for(let y=3;y<14;y+=2){g.fillStyle='#3a2a20';g.fillRect(2,y,rnd(6,12)|0,1);}});
 const plainT=ptex(8,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.8,1)*255;px(g,x,y,v,v,v);}});
 const skinT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.5,1);px(g,x,y,60*v,55*v,50*v);}});
+const stoneT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const mortar=(x%8<1||y%8<1)?.52:1;const v=rnd(.75,1)*mortar;px(g,x,y,138*v,136*v,128*v);}});
+const wardT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){let v=rnd(.82,1);if(x%8==0||y%8==0)v*=.32;if(Math.random()<.06)v*=.55;px(g,x,y,126*v,148*v,132*v);}});
+const plasterT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){let v=rnd(.8,1);if(Math.random()<.04)v*=.45;if(y%16==0)v*=.7;px(g,x,y,168*v,164*v,146*v);}});
+const bloodT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const d=Math.hypot(x-8,y-8);const v=d<2+Math.random()*5?rnd(.15,.4):rnd(.25,.45);px(g,x,y,90*v,18*v,16*v);}});
 // ---------- level
 const plats=[];
 function boxUV(geo,w,h,d){const uv=geo.attributes.uv;for(let i=0;i<uv.count;i++){const f=Math.floor(i/4);const sx=f<2?d:w,sy=(f==2||f==3)?d:h;uv.setXY(i,uv.getX(i)*sx/4,uv.getY(i)*sy/4);}}
@@ -124,13 +129,13 @@ const m=new THREE.Mesh(geo,psxMat(tex));m.position.set(x,y,z);m.rotation.y=0;sce
 // section 1 — broken bridge
 plat(0,-1,0,10,2,10,tileT);
 plat(0,0,-9,3,1,3);plat(3,.8,-14,3,1,3);plat(0,1.6,-19,3,1,3,rustT,{axis:'x',amp:2.5,sp:.9});plat(-1,2.2,-24,3,1,3);
-plat(0,2.4,-30,8,1,8,tileT);
+plat(0,2.4,-30,8,1,8,wardT);
 // section 2 — collapsed ward
 plat(5,3,-36,2.5,1,2.5,rustT);plat(9,3.8,-40,2.5,1,2.5,woodT,{axis:'z',amp:2,sp:1.1});plat(13,4.6,-44,2.5,1,2.5);plat(13,5.4,-49.5,2.5,1,2.5,rustT);
-plat(9,6,-54,3,1,3,woodT,{axis:'x',amp:2.5,sp:.7});plat(4,6.6,-59,3,1,3);plat(0,6.6,-64,8,1,8,tileT);
+plat(9,6,-54,3,1,3,woodT,{axis:'x',amp:2.5,sp:.7});plat(4,6.6,-59,3,1,3);plat(0,6.6,-64,8,1,8,wardT);
 // section 3 — to the bell tower
-plat(-5,7.4,-69,2.2,1,2.2,rustT);plat(-9,8.2,-73,2.2,1,2.2);plat(-9,9,-78.5,2.2,1,2.2,rustT,{axis:'x',amp:2.5,sp:1.3});plat(-5,9.8,-83,2.2,1,2.2);
-plat(0,10.6,-87.5,2.5,1,2.5,woodT,{axis:'z',amp:1.2,sp:1.5});plat(0,10.6,-95,8,1,8,tileT);
+plat(-5,7.4,-69,2.2,1,2.2,stoneT);plat(-9,8.2,-73,2.2,1,2.2,stoneT);plat(-9,9,-78.5,2.2,1,2.2,stoneT,{axis:'x',amp:2.5,sp:1.3});plat(-5,9.8,-83,2.2,1,2.2,stoneT);
+plat(0,10.6,-87.5,2.5,1,2.5,stoneT,{axis:'z',amp:1.2,sp:1.5});plat(0,10.6,-95,8,1,8,stoneT);
 const CPS=[new THREE.Vector3(0,0,2),new THREE.Vector3(0,2.9,-28),new THREE.Vector3(0,7.1,-62)];
 // decor: broken pillars, beds, rails, crosses in the void
 for(let i=0;i<40;i++){const p=new THREE.Mesh(new THREE.CylinderGeometry(rnd(.4,1.2),rnd(.8,1.6),rnd(10,30),5),psxMat(tileT,0x707a70));p.position.set(rnd(-30,35)+(Math.random()<.5?-14:14),-12+rnd(-8,6),rnd(-110,20));p.rotation.z=rnd(-.3,.3);scene.add(p);}
@@ -138,17 +143,61 @@ function deco(x,y,z){const g=new THREE.Group();const frame=new THREE.Mesh(new TH
 const mat=new THREE.Mesh(new THREE.BoxGeometry(.9,.15,1.8),psxMat(paperT,0x998877));mat.position.y=.63;g.add(frame,mat);
 for(const [a,b] of [[-.45,-.95],[.45,-.95],[-.45,.95],[.45,.95]]){const l=new THREE.Mesh(new THREE.BoxGeometry(.08,.5,.08),psxMat(rustT));l.position.set(a,.25,b);g.add(l);}g.position.set(x,y,z);g.rotation.y=rnd(-1,1);scene.add(g);}
 
-// lamps (flicker)
-const lamps=[];[[3,0,2],[-3,2.9,-30],[3,7.1,-64],[-3,11.1,-93]].forEach(([x,y,z],i)=>{const pole=new THREE.Mesh(new THREE.BoxGeometry(.12,3,.12),psxMat(rustT,0xffffff,.15));pole.position.set(x,y+1.5,z);
-const b=new THREE.Mesh(new THREE.BoxGeometry(.55,.4,.55),psxMat(plainT,0xfff0c0,1));b.position.set(x,y+3.05,z);scene.add(pole,b);lamps.push(b);U.lamps.value[i].set(x,y+3.05,z);});
+// lamps — one pool per set-piece: bridge, ward door, ward room, belfry
+const lamps=[];[[4.3,0,2.2],[-3.3,2.9,-27.4],[3.1,7.1,-66.2],[1.5,11.1,-93.4]].forEach(([x,y,z],i)=>{const pole=new THREE.Mesh(new THREE.BoxGeometry(.12,2.6,.12),psxMat(rustT,0xffffff,.15));pole.position.set(x,y+1.3,z);
+const arm=new THREE.Mesh(new THREE.BoxGeometry(.5,.06,.06),psxMat(rustT));arm.position.set(x-.2,y+2.55,z);scene.add(pole,arm);
+const b=new THREE.Mesh(new THREE.BoxGeometry(.5,.32,.5),psxMat(plainT,0xfff0c0,1));b.position.set(x-.35,y+2.35,z);scene.add(b);lamps.push(b);U.lamps.value[i].set(x-.35,y+2.35,z);});
 const voidM=new THREE.Mesh(new THREE.PlaneGeometry(300,300,24,24),psxMat(skinT,0x201010,.3));voidM.rotation.x=-Math.PI/2;voidM.position.y=-20;scene.add(voidM);
-// bell tower
+// bell tower: stone shell, beam, bell hanging in the opening
 const tower=new THREE.Group();
-for(const [x,z] of [[-2,-2],[2,-2],[-2,2],[2,2]]){const c=new THREE.Mesh(new THREE.BoxGeometry(.4,5,.4),psxMat(woodT));c.position.set(x,2.5,z);tower.add(c);}
-const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2,2.5,4),psxMat(rustT,0x664444));roof.position.y=6.2;roof.rotation.y=Math.PI/4;tower.add(roof);
-const bell=new THREE.Mesh(new THREE.CylinderGeometry(.5,1,1.3,7,1,true),psxMat(rustT,0xbb9955,.2));bell.material.side=THREE.DoubleSide;bell.position.y=4.2;tower.add(bell);
-const rope=new THREE.Mesh(new THREE.BoxGeometry(.05,3,.05),psxMat(plainT,0x887755));rope.position.y=2;tower.add(rope);
+const tStone=psxMat(stoneT),tWood=psxMat(woodT),tRust=psxMat(rustT),tBell=psxMat(rustT,0xddb86a,.45);
+for(const [x,z] of [[-2.15,-2.15],[2.15,-2.15],[-2.15,2.15],[2.15,2.15]]){const c=new THREE.Mesh(new THREE.BoxGeometry(.6,4.4,.6),tStone);c.position.set(x,2.2,z);tower.add(c);}
+for(const x of [-2.15,2.15]){const w=new THREE.Mesh(new THREE.BoxGeometry(.28,1.7,3.2),tStone);w.position.set(x,.85,0);tower.add(w);}
+const backW=new THREE.Mesh(new THREE.BoxGeometry(3.6,2.4,.28),tStone);backW.position.set(0,1.2,-2.15);tower.add(backW);
+const beam=new THREE.Mesh(new THREE.BoxGeometry(4.4,.26,.28),tWood);beam.position.set(0,3.55,0);tower.add(beam);
+const hanger=new THREE.Mesh(new THREE.BoxGeometry(.08,.55,.08),tRust);hanger.position.y=3.15;tower.add(hanger);
+const bell=new THREE.Mesh(new THREE.CylinderGeometry(.62,1.15,1.55,7,1,true),tBell);bell.material.side=THREE.DoubleSide;bell.position.y=2.25;tower.add(bell);
+const clapper=new THREE.Mesh(new THREE.BoxGeometry(.18,.55,.18),tRust);clapper.position.y=1.85;tower.add(clapper);
+const rope=new THREE.Mesh(new THREE.BoxGeometry(.05,1.7,.05),psxMat(plainT,0x887755));rope.position.y=.85;tower.add(rope);
+const roofL=new THREE.Mesh(new THREE.BoxGeometry(2.2,.18,2.4),psxMat(rustT,0x664444));roofL.position.set(-.9,4.15,-.2);roofL.rotation.z=.18;tower.add(roofL);
+const roofR=new THREE.Mesh(new THREE.BoxGeometry(1.6,.18,2.2),psxMat(rustT,0x553838));roofR.position.set(1.15,3.9,.3);roofR.rotation.z=-.35;tower.add(roofR);
 tower.position.set(0,11.1,-96);scene.add(tower);const GOAL=new THREE.Vector3(0,11.1,-96);
+// static dressing batched per material so the phone draw stays small. Collision is unchanged.
+const MAT={wood:psxMat(woodT),rust:psxMat(rustT),stone:tStone,plaster:psxMat(plasterT),blood:psxMat(bloodT,0xffcccc),dark:psxMat(plainT,0x14110f),rope:psxMat(plainT,0x6a5a42)};
+const bins={};function put(key,w,h,d,x,y,z,ry=0){const g=new THREE.BoxGeometry(w,h,d);g.applyMatrix4(new THREE.Matrix4().makeRotationY(ry).setPosition(x,y,z));(bins[key]||(bins[key]=[])).push(g);}
+function stain(x,y,z,s=1){const g=new THREE.PlaneGeometry(s,s*.72);g.rotateX(-Math.PI/2);g.translate(x,y+.045,z);(bins.blood||(bins.blood=[])).push(g);}
+function surf(i){const p=plats[i];return {x:p.m.position.x,y:p.m.position.y+p.h/2,z:p.m.position.z,w:p.w,d:p.d,h:p.h,m:p.m};}
+function sideRails(s){for(const side of [-1,1]){const x=s.x+side*(s.w/2-.12);const n=Math.max(2,Math.round(s.d/1.6));
+ for(let i=0;i<=n;i++)put('rust',.08,.78,.08,x,s.y+.4,s.z-s.d/2+s.d*i/n);put('rust',.055,.055,s.d*.9,x,s.y+.76,s.z);}}
+function sag(x1,y1,z1,x2,y2,z2){const n=4;for(let i=0;i<n;i++){const t=(i+.5)/n;const x=x1+(x2-x1)*t,z=z1+(z2-z1)*t;const y=y1+(y2-y1)*t-Math.sin(Math.PI*t)*.5;const len=Math.hypot(x2-x1,z2-z1)/n+.08;put('rope',.035,.035,len,x,y,z,Math.atan2(x2-x1,z2-z1));}}
+function localRails(s){for(const side of [-1,1]){const x=side*(s.w/2-.12);const bar=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,s.d*.85),MAT.rust);bar.position.set(x,s.h/2+.55,0);s.m.add(bar);
+ for(const dz of [-s.d*.4,0,s.d*.4]){const p=new THREE.Mesh(new THREE.BoxGeometry(.07,.7,.07),MAT.rust);p.position.set(x,s.h/2+.28,dz);s.m.add(p);}}}
+// section 1 — broken bridge: edge rails, sagging ropes, loose planks
+sideRails(surf(0));
+[1,2,4].forEach(i=>sideRails(surf(i)));
+[3,7,10,15,17].forEach(i=>localRails(surf(i)));
+{const a=surf(0),b=surf(1);sag(-1.2,a.y+.7,a.z-a.d/2,-1.1,b.y+.65,b.z+b.d/2);sag(1.2,a.y+.7,a.z-a.d/2,1.1,b.y+.65,b.z+b.d/2);
+ const c=surf(2),d=surf(4);sag(b.x-1.1,b.y+.6,b.z-b.d/2,c.x-1.2,c.y+.6,c.z+c.d/2);sag(c.x+1.2,c.y+.55,c.z-c.d/2,d.x+1.1,d.y+.55,d.z+d.d/2);}
+[1,2,4].forEach(i=>{const s=surf(i);for(const o of [-.55,0,.55])put('wood',s.w*.8,.045,.26,s.x,s.y+.03,s.z+o);});
+put('wood',1.4,.08,.32,-1.6,.15,-6.2,.4);put('wood',1.1,.08,.28,2.2,.55,-16.6,-.5);put('wood',.9,.07,.24,0,1.7,-21.4,.2);
+stain(1.2,.02,1.4,1.3);stain(-2.4,.02,-2.2,.9);stain(.4,.52,-9.2,.7);
+// section 2 — collapsed ward: plaster walls, a doorway, broken windows, debris
+{const s=surf(5),y=s.y;put('plaster',.28,2.3,5.2,-3.75,y+1.15,s.z);put('plaster',.28,2.3,2.6,3.75,y+1.15,-28.1);
+ put('plaster',1.5,2.3,.28,-2.7,y+1.15,-33.75);put('plaster',1.2,2.3,.28,2.2,y+1.15,-33.75);put('plaster',2.2,.4,.28,-.4,y+2.15,-33.75);
+ put('wood',1.5,.08,.08,-3.75,y+1.55,-31.2);put('wood',1.5,.08,.08,-3.75,y+.55,-31.2);put('wood',.08,1.1,.08,-4.4,y+1.05,-31.2);put('wood',.08,1.1,.08,-3.1,y+1.05,-31.2);
+ put('dark',.55,.6,.04,-3.9,y+1.15,-31.16);put('wood',.5,.12,.5,-2.4,y+.12,-32.4,.6);put('stone',.35,.22,.4,3.1,y+.12,-28.2,-.4);
+ stain(-1.1,y,-29.2,1.1);stain(2.2,y,-31.6,.8);}
+{const s=surf(12),y=s.y;put('plaster',.28,2.5,3.4,-3.75,y+1.25,-62.4);put('plaster',.28,2.2,5.4,3.75,y+1.1,-64.6);
+ put('plaster',3.4,2.2,.28,1.8,y+1.1,-67.7);put('plaster',1.4,2.2,.28,-2.9,y+1.1,-60.35);put('plaster',1.8,.36,.28,-2.2,y+2.15,-60.35);
+ put('wood',1.35,.08,.08,3.75,y+1.7,-64.2);put('wood',1.35,.08,.08,3.75,y+.7,-64.2);put('wood',.08,1.1,.08,3.15,y+1.2,-64.2);put('wood',.08,1.1,.08,4.35,y+1.2,-64.2);
+ put('wood',1.6,.14,.28,-1.5,y+.2,-66.6,.9);put('stone',.4,.25,.45,2.6,y+.14,-63.2);put('stone',.3,.18,.35,-3.2,y+.1,-61.4);
+ stain(0.6,y,-63.4,1.2);stain(-2.1,y,-65.5,.85);}
+// section 3 — stone stair risers and rubble up to the tower
+[13,14,16].forEach(i=>{const s=surf(i);put('stone',s.w*.92,s.h*.8,.1,s.x,s.y-s.h*.35,s.z+s.d/2+.04);});
+{const s=surf(18);put('stone',2.2,.7,1.1,-2.6,s.y+.35,-96.8);put('stone',1.4,.4,.8,2.4,s.y+.2,-94.2);stain(.8,s.y,-95.2,1);stain(-1.6,s.y,-96.4,.7);}
+// distant sanatorium silhouettes, inside the fog but off the route
+[[-26,-6,12,5.5],[30,-22,16,7],[-30,-46,13,6],[28,-58,18,8],[-24,-86,11,5],[32,-96,14,6]].forEach(([x,z,h,w])=>{put('dark',w,h,w*.65,x,h*.3-8,z);put('dark',w*.3,.5,w*.3,x,h*.3-8+h/2,z);});
+for(const k in bins){const g=mergeGeometries(bins[k],false);if(g)scene.add(new THREE.Mesh(g,MAT[k]));}
 // notes (diary)
 const NOTES=[
 ['Дневник медсестры Г. Сомовой. 3 июня 1987.','Главврач Курганов запретил выпускать детей после отбоя. Говорит, карьер «дышит». Ночью я слышала снизу голос. Он считал. Медленно. До одиннадцати.'],
@@ -289,7 +338,7 @@ function findBones(root,dst){root.traverse(o=>{if(o.isBone){const k=o.name.repla
 const qtmp=new THREE.Quaternion(),etmp=new THREE.Euler();
 function pose(B,name,x,y,z){const b=B[name];if(!b)return;etmp.set(x,y,z);b.quaternion.copy(b.userData.rest).multiply(qtmp.setFromEuler(etmp));}
 function holdFlashlight(root,fl,hand){root.updateWorldMatrix(true,true);
- const fwd=new THREE.Vector3(-1,0,0).transformDirection(root.matrixWorld);
+ const fwd=new THREE.Vector3(1,0,0).transformDirection(root.matrixWorld);
  const dir=fwd.clone().transformDirection(new THREE.Matrix4().copy(hand.matrixWorld).invert()).normalize();
  fl.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);
  const ws=new THREE.Vector3();hand.getWorldScale(ws);fl.scale.setScalar(.4/.247/Math.max(ws.x,1e-5));
@@ -297,20 +346,21 @@ function holdFlashlight(root,fl,hand){root.updateWorldMatrix(true,true);
 Promise.all(['anya','monster','props','buildings','cars','explore'].map(n=>loadGLB(`assets/models/${n}.glb`))).then(([anya,monster,props,buildings,cars,explore])=>{
  Object.assign(sets,{props:props&&psxify(props),buildings:buildings&&psxify(buildings,0x8a8f88),cars:cars&&psxify(cars,0xa08070),explore:explore&&psxify(explore)});
  if(anya){psxify(anya);fit(anya,1.65);
-  // Rig faces -X. Body yaw points +Z along velocity, so turn the mesh +90° and she walks the way she looks.
-  anya.rotation.y=Math.PI/2;findBones(anya,bones);body.children.slice().forEach(c=>c.visible=false);body.add(anya);
+  // Face is local +X (the -X side is the back of the head). Body yaw points +Z along velocity, so -90° turns the face into the move direction.
+  anya.rotation.y=-Math.PI/2;findBones(anya,bones);body.children.slice().forEach(c=>c.visible=false);body.add(anya);
   const fl=grab('explore','flashlight');if(fl&&bones.RightHand)holdFlashlight(anya,fl,bones.RightHand);
-  // Limb local +Z swings in the sagittal plane. On the arms that axis is flipped versus the legs, so the same sign is the opposite stroke.
-  animChar=(t,gr,hs)=>{const k=Math.min(1,hs/SPD);
-   if(!gr){pose(bones,'LeftArm',0,0,-2.4);pose(bones,'RightArm',0,0,-2.4);pose(bones,'LeftForeArm',0,0,-.55);pose(bones,'RightForeArm',0,0,-.55);
-    pose(bones,'LeftUpLeg',0,0,.55);pose(bones,'RightUpLeg',0,0,.55);pose(bones,'LeftLeg',0,0,-1.15);pose(bones,'RightLeg',0,0,-1.15);pose(bones,'Spine',0,0,-.12);return;}
+  // Same-sign Z on the arms is the opposite stroke from the legs. Phase is distance-based so the stride matches ground speed.
+  animChar=(phase,gr,hs)=>{const k=Math.min(1,hs/SPD);
+   if(!gr){pose(bones,'LeftArm',0,0,-2.2);pose(bones,'RightArm',0,0,-2.2);pose(bones,'LeftForeArm',0,0,-.5);pose(bones,'RightForeArm',0,0,-.5);
+    pose(bones,'LeftUpLeg',0,0,.4);pose(bones,'RightUpLeg',0,0,.4);pose(bones,'LeftLeg',0,0,-.9);pose(bones,'RightLeg',0,0,-.9);pose(bones,'Spine',0,0,-.1);return;}
    if(k<.08){for(const n of ['LeftArm','RightArm','LeftForeArm','RightForeArm','LeftUpLeg','RightUpLeg','LeftLeg','RightLeg','Spine'])pose(bones,n,0,0,0);return;}
-   const sw=Math.sin(t*(6.2+8*k))*(.22+.78*k);
-   pose(bones,'LeftUpLeg',0,0,sw);pose(bones,'RightUpLeg',0,0,-sw);
-   pose(bones,'LeftArm',0,0,sw);pose(bones,'RightArm',0,0,-sw);
-   pose(bones,'LeftForeArm',0,0,-.28-Math.max(0,sw)*.45);pose(bones,'RightForeArm',0,0,-.28-Math.max(0,-sw)*.45);
-   pose(bones,'LeftLeg',0,0,-Math.max(0,-sw)*1.15);pose(bones,'RightLeg',0,0,-Math.max(0,sw)*1.15);
-   pose(bones,'Spine',0,0,-.06*k);};}
+   const leg=Math.sin(phase)*Math.min(.4,.05+hs*.055);
+   const arm=leg*.46;
+   pose(bones,'LeftUpLeg',0,0,leg);pose(bones,'RightUpLeg',0,0,-leg);
+   pose(bones,'LeftArm',0,0,arm);pose(bones,'RightArm',0,0,-arm);
+   pose(bones,'LeftForeArm',0,0,-.16-Math.max(0,arm)*.3);pose(bones,'RightForeArm',0,0,-.16-Math.max(0,-arm)*.3);
+   pose(bones,'LeftLeg',0,0,-Math.max(0,-leg)*.7);pose(bones,'RightLeg',0,0,-Math.max(0,leg)*.7);
+   pose(bones,'Spine',0,0,-.025*k);};}
  if(monster){psxify(monster,0xb0a090);fit(monster,2.9);
   // Rig faces +X. Object3D.lookAt points the group's +Z at the target, so -90° yaw turns the face toward the player.
   monster.rotation.y=-Math.PI/2;findBones(monster,monBones);mb.children.slice().forEach(c=>c.visible=false);mb.add(monster);
@@ -318,8 +368,8 @@ Promise.all(['anya','monster','props','buildings','cars','explore'].map(n=>loadG
  // set dressing: hospital beds & furniture from "Paquete de modelos PSX 3", diner & trailer-park props
  // props face the path (player approaches from +Z). Long beds run across the pad so the walkway stays clear.
  place('props','Bed',-3.2,0,-1.6,Math.PI/2);place('props','Bed_03',3.1,0,-2.2,-.4);place('props','Lamps_01',3.6,0,3.2,0);place('props','diner_Garbage_bag',-3.6,0,3.1,.6);
- place('props','Bed_06',2.6,2.9,-32.2,Math.PI/2);place('props','Cajonera',-3.1,2.9,-27.2,Math.PI);place('props','diner_Chair',-2.2,2.9,-33.2,0);place('props','diner_Fence',3.55,2.9,-30.2,0);
- place('props','trailer_Armchair',-2.6,7.1,-65.6,.6);place('props','Bed',2.4,7.1,-61.2,Math.PI/2);place('props','diner_Dumpster',3.1,7.1,-66.4,Math.PI);place('props','diner_Garbage_bag_01',1.1,7.1,-67.1,.4);
+ place('props','Bed_06',2.6,2.9,-32.2,Math.PI/2);place('props','Cajonera',-3.1,2.9,-27.2,Math.PI);place('props','diner_Chair',-2.2,2.9,-33.2,0);place('props','diner_Fence',3.55,2.9,-30.2,0);place('props','diner_Garbage_bag',-1.5,2.9,-31.4,.4);
+ place('props','trailer_Armchair',-2.6,7.1,-65.6,.6);place('props','Bed',2.4,7.1,-61.2,Math.PI/2);place('props','diner_Dumpster',3.1,7.1,-66.4,Math.PI);place('props','diner_Garbage_bag_01',1.1,7.1,-67.1,.4);place('props','diner_Chair',-2.7,7.1,-66.5,.7);
  place('props','trailer_Antenna_01',-2.8,11.1,-97.2,0);place('explore','recorder',-.7,11.1,-93.2,-Math.PI/2,1.4);place('explore','spiritbox',2.3,7.1,-61.6,.8,1.4);
  // clock face is the thin X axis; -90° yaw turns that face toward +Z (the path). Mounted on the tower front.
  const clock=grab('props','trailer_Clock');if(clock){clock.rotation.y=-Math.PI/2;clock.scale.setScalar(1.6);clock.position.set(0,3.35,2.2);tower.add(clock);}
@@ -336,7 +386,7 @@ Promise.all(['anya','monster','props','buildings','cars','explore'].map(n=>loadG
 });
 const voidJunk=[];
 // ---------- loop
-const clock=new THREE.Clock();let t=0,flick=1;
+const clock=new THREE.Clock();let t=0,flick=1,gait=0;
 const hit=()=>{for(const p of plats){const q=p.m.position;if(pos.x+R>q.x-p.w/2&&pos.x-R<q.x+p.w/2&&pos.z+R>q.z-p.d/2&&pos.z-R<q.z+p.d/2&&pos.y+H>q.y-p.h/2&&pos.y<q.y+p.h/2)return p;}return null;};
 function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);t+=dt;post.time.value=t;
  if(Math.random()<.012)flick=rnd(.84,.97);flick+=(1-flick)*dt*2;if(blackT>0){blackT-=dt;U.bright.value=.58;}else U.bright.value=flick;
@@ -367,9 +417,10 @@ function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.
  const wasAir=!wasGrounded;if(p){const top=p.m.position.y+p.h/2;if(vel.y<=0&&pos.y-vel.y*dt>=top-.3){pos.y=top;grounded=true;ground=p;if(wasAir&&fallV<-6)footstep(p.kind,.9,.8);}else{pos.y=p.m.position.y-p.h/2-H;}vel.y=0;}
  if(pos.y<CPS[cp].y-14){die();return;}
  player.position.copy(pos);
- const hs=Math.hypot(vel.x,vel.z);if(grounded&&hs>1){stepT-=dt*hs/SPD;if(stepT<=0){stepT=.32;footstep(ground.kind,.45);}}
- animChar(t,grounded,hs);
- const sw=grounded?Math.sin(t*14)*Math.min(1,Math.hypot(vel.x,vel.z)/SPD)*.7:.5;legL.rotation.x=sw;legR.rotation.x=-sw;armL.rotation.x=-sw;armR.rotation.x=sw;
+ const hs=Math.hypot(vel.x,vel.z);if(grounded&&hs>1){stepT-=dt*hs/SPD;if(stepT<=0){stepT=.27;footstep(ground.kind,.45);}}
+ if(grounded&&hs>.15)gait+=dt*hs*(Math.PI*2/3.2);
+ animChar(gait,grounded,hs);
+ const sw=grounded?Math.sin(gait)*.28:.4;legL.rotation.x=sw;legR.rotation.x=-sw;armL.rotation.x=-sw*.5;armR.rotation.x=sw*.5;
  let sy=-100;for(const q of plats){const m=q.m.position;if(Math.abs(pos.x-m.x)<q.w/2&&Math.abs(pos.z-m.z)<q.d/2){const top=m.y+q.h/2;if(top<=pos.y+.05&&top>sy)sy=top;}}
  shadow.visible=sy>-100;shadow.position.set(pos.x,sy+.02,pos.z);
  // checkpoints
