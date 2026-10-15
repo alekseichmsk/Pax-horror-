@@ -1,0 +1,10 @@
+Third-party assets (converted to GLB / MP3, textures downscaled to <=128px, nearest filtering):
+- elbolilloduro — Characters PSX (Character_Female_03 = Anya, Character_Monster_02 = monster) — CC0  https://elbolilloduro.itch.io/characters-psx
+- elbolilloduro — Paquete de modelos PSX 3 (beds, drawers, lamp) — CC0  https://elbolilloduro.itch.io/paquete-de-modelos-psx-3
+- elbolilloduro — Exploration Objects (flashlight, voice recorder, spirit box) — CC0  https://elbolilloduro.itch.io/exploration-objects
+- elbolilloduro — Buildings (Building_03/08/09) — CC0  https://elbolilloduro.itch.io/buildings
+- elbolilloduro — Trailer Park (armchair, antenna, clock) — CC0  https://elbolilloduro.itch.io/trailer-park
+- elbolilloduro — Diner (dumpster, garbage bags, fence, chair) — CC0  https://elbolilloduro.itch.io/diner
+- GGBot — PSX Style Cars (Car 1/4/7) — CC0 1.0  https://ggbot.itch.io/psx-style-cars
+- Hazardpay — 40 Free PSX Crunchy Footsteps (concrete/wood/metal) — royalty free, credit not required but appreciated  https://hazardpay.itch.io/40-free-psx-crunchy-footsteps
+Code, story, procedural textures and synthesized audio: original.
