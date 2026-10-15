@@ -29,7 +29,7 @@ body.is-touch #hint{display:none}
 
 Тридцать лет спустя мне пришло письмо без обратного адреса. Внутри — детский рисунок: колокольня и надпись «Аня, позвони, и я выйду».
 
-Мост к санаторию давно обрушился. Остались только обломки, висящие над темнотой.
+Дорога к санаторию опустела. Дома стоят с тёмными окнами, машины брошены поперёк улицы.
 Собирай записки. Не стой на месте, когда слышишь сердце.
 
 [ Нажми / коснись, чтобы начать — звук включён ]
@@ -75,7 +75,7 @@ c*=mix(1.,.02,black);
 c+=bayer(px)/32.;c=floor(c*31.+.5)/31.;gl_FragColor=vec4(c,1.);}`,defines:{RES:'vec2(320.,240.)'}});
 postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMat));
 // ---------- PSX material: vertex snapping, affine UVs, gouraud, fog, flicker light
-const U={snap:{value:new THREE.Vector2(160,120)},fogCol:{value:FOG},lightDir:{value:new THREE.Vector3(.25,1,.35).normalize()},bright:{value:1},fogNear:{value:22},fogFar:{value:78},
+const U={snap:{value:new THREE.Vector2(160,120)},fogCol:{value:FOG},lightDir:{value:new THREE.Vector3(.25,1,.35).normalize()},bright:{value:1},fogNear:{value:14},fogFar:{value:52},
 flashPos:{value:new THREE.Vector3()},flashDir:{value:new THREE.Vector3(0,-.2,-1)},flashI:{value:4.2},lampI:{value:4.4},
 lamps:{value:[new THREE.Vector3(3,3,2),new THREE.Vector3(-3,5.9,-30),new THREE.Vector3(3,10.1,-64),new THREE.Vector3(-3,14.1,-93)]}};
 function psxMat(tex,color=0xffffff,emis=0){return new THREE.ShaderMaterial({uniforms:{map:{value:tex},col:{value:new THREE.Color(color)},emis:{value:emis},...U},
@@ -121,21 +121,37 @@ const stoneT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const mort
 const wardT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){let v=rnd(.82,1);if(x%8==0||y%8==0)v*=.32;if(Math.random()<.06)v*=.55;px(g,x,y,126*v,148*v,132*v);}});
 const plasterT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){let v=rnd(.8,1);if(Math.random()<.04)v*=.45;if(y%16==0)v*=.7;px(g,x,y,168*v,164*v,146*v);}});
 const bloodT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const d=Math.hypot(x-8,y-8);const v=d<2+Math.random()*5?rnd(.15,.4):rnd(.25,.45);px(g,x,y,90*v,18*v,16*v);}});
+const asphaltT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){let v=rnd(.42,.62);if(((x*3+y*5)%17)<2)v*=.45;if(Math.random()<.05)v*=.7;px(g,x,y,42*v,44*v,40*v);}
+ g.fillStyle='rgba(18,16,14,.8)';g.fillRect(0,11,18,1);g.fillRect(8,23,24,1);});
+const puddleT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.55,.85);px(g,x,y,28*v,40*v,38*v);}});
 // ---------- level
 const plats=[];
 function boxUV(geo,w,h,d){const uv=geo.attributes.uv;for(let i=0;i<uv.count;i++){const f=Math.floor(i/4);const sx=f<2?d:w,sy=(f==2||f==3)?d:h;uv.setXY(i,uv.getX(i)*sx/4,uv.getY(i)*sy/4);}}
 function plat(x,y,z,w,h,d,tex=woodT,mov=null){const geo=new THREE.BoxGeometry(w,h,d,Math.ceil(w/2),1,Math.ceil(d/2));boxUV(geo,w,h,d);
 const m=new THREE.Mesh(geo,psxMat(tex));m.position.set(x,y,z);m.rotation.y=0;scene.add(m);const p={m,w,h,d,mov,delta:0,kind:tex===woodT?'wood':tex===rustT?'metal':'concrete'};if(mov)mov.base=m.position[mov.axis];plats.push(p);return p;}
-// section 1 — broken bridge
-plat(0,-1,0,10,2,10,tileT);
-plat(0,0,-9,3,1,3);plat(3,.8,-14,3,1,3);plat(0,1.6,-19,3,1,3,rustT,{axis:'x',amp:2.5,sp:.9});plat(-1,2.2,-24,3,1,3);
+// section 1 — solid street. Tops: road 0, wreck 1.15, collapsed roof 2.0, porch 2.9 (meets the ward).
+plat(0,-1,-6,26,2,44,asphaltT);
+plat(1.5,.575,-15.2,1.6,1.15,3.2,rustT);
+plat(0,1.55,-19.4,3.6,.9,3.6,woodT);
+plat(-2.2,.5,-5.5,2.6,1,.28,woodT);
+plat(0,2.65,-24.5,5.4,.5,5,woodT);
 plat(0,2.4,-30,8,1,8,wardT);
-// section 2 — collapsed ward
-plat(5,3,-36,2.5,1,2.5,rustT);plat(9,3.8,-40,2.5,1,2.5,woodT,{axis:'z',amp:2,sp:1.1});plat(13,4.6,-44,2.5,1,2.5);plat(13,5.4,-49.5,2.5,1,2.5,rustT);
-plat(9,6,-54,3,1,3,woodT,{axis:'x',amp:2.5,sp:.7});plat(4,6.6,-59,3,1,3);plat(0,6.6,-64,8,1,8,wardT);
-// section 3 — to the bell tower
-plat(-5,7.4,-69,2.2,1,2.2,stoneT);plat(-9,8.2,-73,2.2,1,2.2,stoneT);plat(-9,9,-78.5,2.2,1,2.2,stoneT,{axis:'x',amp:2.5,sp:1.3});plat(-5,9.8,-83,2.2,1,2.2,stoneT);
-plat(0,10.6,-87.5,2.5,1,2.5,stoneT,{axis:'z',amp:1.2,sp:1.5});plat(0,10.6,-95,8,1,8,stoneT);
+// section 2 — collapsed ward, static floors (no moving pads)
+plat(5.2,3.05,-36.5,2.4,1,2.6,rustT);plat(8,3.7,-40.8,2.4,1,2.6,woodT);plat(10.2,4.35,-45.1,2.4,1,2.6);plat(10.6,5,-49.4,2.4,1,2.6,rustT);
+plat(7.4,5.65,-53.7,2.6,1,2.8,woodT);plat(4,6.3,-58,2.4,1,2.6);plat(0,6.6,-64,8,1,8,wardT);
+// section 3 — stone steps to the bell tower, static
+plat(-4.6,7.2,-70.5,2.4,1,2.6,stoneT);plat(-7.2,7.85,-75,2.4,1,2.6,stoneT);plat(-5.8,8.5,-79.5,2.4,1,2.6,stoneT);plat(-3,9.15,-84,2.4,1,2.6,stoneT);
+plat(-.8,9.8,-88.5,2.4,1,2.6,stoneT);plat(0,10.6,-95,8,1,8,stoneT);
+// blockers that are not part of the indexed route: dumpster step, street-end wall, houses, yard fences
+function solid(x,y,z,w,h,d){const p=plat(x,y,z,w,h,d,stoneT);p.m.visible=false;return p;}
+solid(-1.8,.575,-16.1,2,1.15,1.5);
+solid(0,1.05,-25.2,24,2.1,1.2);
+[1,3].forEach(i=>{plats[i].m.visible=false;});
+// houses sit just past the sidewalk; collision matches the scaled GLB footprint (yaw ±90°)
+const HOUSES=[['Building_08',8.52,7.5,-Math.PI/2,.34,4.74,5.28,4.41],['Building_03',8.72,-2.5,-Math.PI/2,.3,5.15,6.96,5.64],['Building_09',8.65,-14.5,-Math.PI/2,.36,4.99,6.08,4.28],['Building_09',-8.65,3,Math.PI/2,.36,4.99,6.08,4.28],['Building_08',-8.52,-8,Math.PI/2,.34,4.74,5.28,4.41],['Building_03',-8.72,-18,Math.PI/2,.3,5.15,6.96,5.64]];
+HOUSES.forEach(h=>{const x=h[1],z=h[2],w=h[5],d=h[6],ht=h[7];solid(x,ht*.46,z,w*.88,ht*.92,d*.88);});
+[[-5.7,6,2.6],[-5.7,-2,2.4],[5.7,2,2.4],[5.7,-11,2.2]].forEach(([x,z,len])=>solid(x,.85,z,.2,1.7,len));
+solid(-2.6,.75,4.2,3.3,1.5,3.4);solid(2.8,.7,-9.4,2.3,1.4,3);
 const CPS=[new THREE.Vector3(0,0,2),new THREE.Vector3(0,2.9,-28),new THREE.Vector3(0,7.1,-62)];
 // decor: broken pillars, beds, rails, crosses in the void
 for(let i=0;i<40;i++){const p=new THREE.Mesh(new THREE.CylinderGeometry(rnd(.4,1.2),rnd(.8,1.6),rnd(10,30),5),psxMat(tileT,0x707a70));p.position.set(rnd(-30,35)+(Math.random()<.5?-14:14),-12+rnd(-8,6),rnd(-110,20));p.rotation.z=rnd(-.3,.3);scene.add(p);}
@@ -143,10 +159,14 @@ function deco(x,y,z){const g=new THREE.Group();const frame=new THREE.Mesh(new TH
 const mat=new THREE.Mesh(new THREE.BoxGeometry(.9,.15,1.8),psxMat(paperT,0x998877));mat.position.y=.63;g.add(frame,mat);
 for(const [a,b] of [[-.45,-.95],[.45,-.95],[-.45,.95],[.45,.95]]){const l=new THREE.Mesh(new THREE.BoxGeometry(.08,.5,.08),psxMat(rustT));l.position.set(a,.25,b);g.add(l);}g.position.set(x,y,z);g.rotation.y=rnd(-1,1);scene.add(g);}
 
-// lamps — one pool per set-piece: bridge, ward door, ward room, belfry
-const lamps=[];[[4.3,0,2.2],[-3.3,2.9,-27.4],[3.1,7.1,-66.2],[1.5,11.1,-93.4]].forEach(([x,y,z],i)=>{const pole=new THREE.Mesh(new THREE.BoxGeometry(.12,2.6,.12),psxMat(rustT,0xffffff,.15));pole.position.set(x,y+1.3,z);
-const arm=new THREE.Mesh(new THREE.BoxGeometry(.5,.06,.06),psxMat(rustT));arm.position.set(x-.2,y+2.55,z);scene.add(pole,arm);
-const b=new THREE.Mesh(new THREE.BoxGeometry(.5,.32,.5),psxMat(plainT,0xfff0c0,1));b.position.set(x-.35,y+2.35,z);scene.add(b);lamps.push(b);U.lamps.value[i].set(x-.35,y+2.35,z);});
+// lamps — four shader pools (street, ward door, ward room, belfry) plus emissive-only street lamps
+const lamps=[];
+function lampPost(x,y,z,ph,pool){const pole=new THREE.Mesh(new THREE.BoxGeometry(.12,ph,.12),psxMat(rustT,0xffffff,.12));pole.position.set(x,y+ph/2,z);
+ const side=x>=0?-1:1;const arm=new THREE.Mesh(new THREE.BoxGeometry(.62,.06,.06),psxMat(rustT));arm.position.set(x+side*.24,y+ph-.12,z);scene.add(pole,arm);
+ const b=new THREE.Mesh(new THREE.BoxGeometry(.42,.26,.42),psxMat(plainT,0xffe7b0,1));b.position.set(x+side*.42,y+ph-.28,z);scene.add(b);lamps.push(b);
+ if(pool!=null)U.lamps.value[pool].set(b.position.x,b.position.y,b.position.z);}
+[[5.15,0,8,4.8,0],[-3.3,2.9,-27.4,2.5,1],[3.1,7.1,-66.2,2.5,2],[1.5,11.1,-93.4,2.5,3]].forEach(a=>lampPost(...a));
+[[-5.15,1,4.6],[5.15,-9,4.6],[-5.15,-20,4.4]].forEach(([x,z,ph])=>lampPost(x,0,z,ph,null));
 const voidM=new THREE.Mesh(new THREE.PlaneGeometry(300,300,24,24),psxMat(skinT,0x201010,.3));voidM.rotation.x=-Math.PI/2;voidM.position.y=-20;scene.add(voidM);
 // bell tower: stone shell, beam, bell hanging in the opening
 const tower=new THREE.Group();
@@ -163,24 +183,39 @@ const roofL=new THREE.Mesh(new THREE.BoxGeometry(2.2,.18,2.4),psxMat(rustT,0x664
 const roofR=new THREE.Mesh(new THREE.BoxGeometry(1.6,.18,2.2),psxMat(rustT,0x553838));roofR.position.set(1.15,3.9,.3);roofR.rotation.z=-.35;tower.add(roofR);
 tower.position.set(0,11.1,-96);scene.add(tower);const GOAL=new THREE.Vector3(0,11.1,-96);
 // static dressing batched per material so the phone draw stays small. Collision is unchanged.
-const MAT={wood:psxMat(woodT),rust:psxMat(rustT),stone:tStone,plaster:psxMat(plasterT),blood:psxMat(bloodT,0xffcccc),dark:psxMat(plainT,0x14110f),rope:psxMat(plainT,0x6a5a42)};
+const MAT={wood:psxMat(woodT),rust:psxMat(rustT),stone:tStone,plaster:psxMat(plasterT),blood:psxMat(bloodT,0xffcccc),dark:psxMat(plainT,0x14110f),rope:psxMat(plainT,0x3a342c),puddle:psxMat(puddleT,0x6a8880,0),mist:psxMat(plainT,0x1c2e26,.25)};
 const bins={};function put(key,w,h,d,x,y,z,ry=0){const g=new THREE.BoxGeometry(w,h,d);g.applyMatrix4(new THREE.Matrix4().makeRotationY(ry).setPosition(x,y,z));(bins[key]||(bins[key]=[])).push(g);}
 function stain(x,y,z,s=1){const g=new THREE.PlaneGeometry(s,s*.72);g.rotateX(-Math.PI/2);g.translate(x,y+.045,z);(bins.blood||(bins.blood=[])).push(g);}
+function puddle(x,y,z,w,d){const g=new THREE.PlaneGeometry(w,d);g.rotateX(-Math.PI/2);g.translate(x,y,z);(bins.puddle||(bins.puddle=[])).push(g);}
 function surf(i){const p=plats[i];return {x:p.m.position.x,y:p.m.position.y+p.h/2,z:p.m.position.z,w:p.w,d:p.d,h:p.h,m:p.m};}
 function sideRails(s){for(const side of [-1,1]){const x=s.x+side*(s.w/2-.12);const n=Math.max(2,Math.round(s.d/1.6));
  for(let i=0;i<=n;i++)put('rust',.08,.78,.08,x,s.y+.4,s.z-s.d/2+s.d*i/n);put('rust',.055,.055,s.d*.9,x,s.y+.76,s.z);}}
 function sag(x1,y1,z1,x2,y2,z2){const n=4;for(let i=0;i<n;i++){const t=(i+.5)/n;const x=x1+(x2-x1)*t,z=z1+(z2-z1)*t;const y=y1+(y2-y1)*t-Math.sin(Math.PI*t)*.5;const len=Math.hypot(x2-x1,z2-z1)/n+.08;put('rope',.035,.035,len,x,y,z,Math.atan2(x2-x1,z2-z1));}}
 function localRails(s){for(const side of [-1,1]){const x=side*(s.w/2-.12);const bar=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,s.d*.85),MAT.rust);bar.position.set(x,s.h/2+.55,0);s.m.add(bar);
  for(const dz of [-s.d*.4,0,s.d*.4]){const p=new THREE.Mesh(new THREE.BoxGeometry(.07,.7,.07),MAT.rust);p.position.set(x,s.h/2+.28,dz);s.m.add(p);}}}
-// section 1 — broken bridge: edge rails, sagging ropes, loose planks
-sideRails(surf(0));
-[1,2,4].forEach(i=>sideRails(surf(i)));
-[3,7,10,15,17].forEach(i=>localRails(surf(i)));
-{const a=surf(0),b=surf(1);sag(-1.2,a.y+.7,a.z-a.d/2,-1.1,b.y+.65,b.z+b.d/2);sag(1.2,a.y+.7,a.z-a.d/2,1.1,b.y+.65,b.z+b.d/2);
- const c=surf(2),d=surf(4);sag(b.x-1.1,b.y+.6,b.z-b.d/2,c.x-1.2,c.y+.6,c.z+c.d/2);sag(c.x+1.2,c.y+.55,c.z-c.d/2,d.x+1.1,d.y+.55,d.z+d.d/2);}
-[1,2,4].forEach(i=>{const s=surf(i);for(const o of [-.55,0,.55])put('wood',s.w*.8,.045,.26,s.x,s.y+.03,s.z+o);});
-put('wood',1.4,.08,.32,-1.6,.15,-6.2,.4);put('wood',1.1,.08,.28,2.2,.55,-16.6,-.5);put('wood',.9,.07,.24,0,1.7,-21.4,.2);
-stain(1.2,.02,1.4,1.3);stain(-2.4,.02,-2.2,.9);stain(.4,.52,-9.2,.7);
+// section 1 — street: curbs, sidewalks, cracks, puddles, poles, wires, porch, fog at the far end
+[7,10,15,17].forEach(i=>localRails(surf(i)));
+{const road=3.55,walk=1.7;
+ for(const side of [-1,1]){const x=side*(road+walk/2);
+  for(let z=14;z>=-26;z-=4)put('stone',walk,.06,3.9,x,.04,z);
+  for(let z=14;z>=-26;z-=2.2)put('stone',.18,.16,.9,side*road,.08,z);}
+ [[1.4,6,1.6,.9],[ -2.2,1.5,2.1,1.1],[2.6,-7,1.3,.8],[-1.1,-12,1.8,1],[0.4,-17,.9,.6]].forEach(([x,z,w,d])=>puddle(x,.03,z,w,d));
+ [[-1.2,4,3.2,.4],[2.1,-2,2.4,-.3],[0,-11,4.1,.15],[-2.4,-16,2.2,.5]].forEach(([x,z,len,ry])=>put('dark',.08,.02,len,x,.03,z,ry));
+ for(let z=12;z>=-24;z-=4)put('plaster',.35,.015,1.1,0,.025,z);
+ const poles=[];
+ for(const side of [-1,1])for(const z of [12,4,-4,-12,-20]){const x=side*5.15;poles.push([x,z]);
+  put('wood',.16,5.2,.16,x,2.6,z);put('wood',1.1,.08,.08,x,5.05,z);}
+ for(let i=0;i<poles.length;i++){const a=poles[i],b=poles[i+1];if(!b||Math.sign(a[0])!==Math.sign(b[0]))continue;sag(a[0],5.15,a[1],b[0],5.15,b[1]);}
+ const roof=surf(2),porch=surf(4);
+ for(const o of [-.7,0,.7])put('wood',roof.w*.92,.05,.22,roof.x,roof.y+.03,roof.z+o);
+ [[-1.4,-1.1],[1.4,-.9],[-1.3,1],[1.3,1.1]].forEach(([dx,dz])=>put('wood',.28,1.2,.28,roof.x+dx,.6,roof.z+dz));
+ put('stone',1.3,.7,1,roof.x-1.5,.35,roof.z+.4);put('stone',.9,.45,.8,roof.x+1.2,.22,roof.z-.5);
+ for(const o of [-1.6,-.8,0,.8,1.6])put('wood',porch.w*.9,.045,.28,porch.x,porch.y+.03,porch.z+o);
+ put('stone',1.1,.7,.8,-1.6,.35,porch.z+1.2);put('stone',.8,.45,.7,1.4,.22,porch.z-.4);put('rust',1.6,.35,1.1,0,1.15,-23.4);
+ put('stone',3.2,1.6,1.1,-7.2,.8,-25.2);put('stone',2.4,1.15,.9,7.4,.58,-25.1);put('stone',2.8,1.8,1,-10.2,.9,-24.8);put('rust',3.2,.55,1.4,9.2,.28,-24.7);put('wood',.2,1.5,2.4,-4.2,.75,-25.3);put('wood',.2,1.4,2.2,4.4,.7,-25.2);
+ puddle(0,.03,-23.2,2.4,1.2);
+ for(const [x,z] of [[-7,-22],[7,-23],[0,-26],[-8,-26]]){const g=new THREE.PlaneGeometry(6,2.4);g.rotateX(-Math.PI/2);g.translate(x,.4,z);(bins.mist||(bins.mist=[])).push(g);}
+ stain(2.4,.02,3.2,.8);stain(-3.1,.02,-1.4,1.1);stain(.6,2.02,-19.2,.6);stain(-.4,2.92,-24.2,.9);}
 // section 2 — collapsed ward: plaster walls, a doorway, broken windows, debris
 {const s=surf(5),y=s.y;put('plaster',.28,2.3,5.2,-3.75,y+1.15,s.z);put('plaster',.28,2.3,2.6,3.75,y+1.15,-28.1);
  put('plaster',1.5,2.3,.28,-2.7,y+1.15,-33.75);put('plaster',1.2,2.3,.28,2.2,y+1.15,-33.75);put('plaster',2.2,.4,.28,-.4,y+2.15,-33.75);
@@ -204,10 +239,10 @@ const NOTES=[
 ['11 июня.','Новенькая, Лида, весь день рисует колокольню. Говорит, её зовёт мальчик из ямы. Я спросила, какой он. «У него нет лица, тётя Галя. Только рот».'],
 ['19 июня.','Курганов каждую ночь бьёт в колокол. Пока звонит — оно спит. Он сказал, что колоколу нужна плата. Я не спросила какая. Я боялась ответа.'],
 ['27 июня.','В подвале нашла список. Одиннадцать фамилий, напротив каждой — крестик. Лида последняя, без крестика. Внизу приписка его рукой: «Чтобы спало ещё тридцать лет».'],
-['1 июля.','Я спрятала Лиду в колокольне. Курганова нашли у карьера — без глаз. Колокол молчит. Оно проснулось и ходит по обломкам моста. Высокое. Оно останавливается, когда я дышу тише.'],
+['1 июля.','Я спрятала Лиду в колокольне. Курганова нашли у карьера — без глаз. Колокол молчит. Оно проснулось и ходит по пустой улице. Высокое. Оно останавливается, когда я дышу тише.'],
 ['(почерк дрожит)','Я больше не Галина. Оно носит моё лицо, как халат. Если ты читаешь это — оно уже за твоей спиной. Не оборачивайся. Беги к колоколу.'],
 ['(детским почерком, свежими чернилами)','Аня. Тридцать лет прошли. Колоколу снова нужна плата. Прости, что позвала тебя. Мне так долго было холодно.']];
-const notePos=[[0,.9,-9],[-1,3,-24],[0,3.3,-33],[13,5.5,-44],[4,7.5,-59],[-9,9.1,-73],[-5,10.7,-83]];
+const notePos=[[2.5,.55,-3.2],[-.4,3.3,-23.4],[0,3.3,-33],[10.2,5.25,-45.1],[4,7.2,-58],[-7.2,8.75,-75],[-3,10.05,-84]];
 const notes=notePos.map((p,i)=>{const n=new THREE.Mesh(new THREE.PlaneGeometry(.55,.72),psxMat(paperT,0xfff4d2,1));n.material.side=THREE.DoubleSide;n.position.set(...p);n.userData={y:p[1]+.35,i};scene.add(n);return n;});
 $('total').textContent=notes.length;
 // player (built from primitives) — Аня: тёмная куртка, фонарик
@@ -230,7 +265,7 @@ const marmL=add(mb,new THREE.BoxGeometry(.12,2.2,.12),0x2a2622,-.4,1.6,0),marmR=
 add(mb,new THREE.BoxGeometry(.12,1.2,.12),0x2a2622,-.15,.4,0);add(mb,new THREE.BoxGeometry(.12,1.2,.12),0x2a2622,.15,.4,0);
 // hospital-gown sheet for the "Галина" look
 add(mb,new THREE.BoxGeometry(.6,1.2,.34),0x8a9a90,0,1.9,0);
-scene.add(mon);const MON_SPAWN=[new THREE.Vector3(0,1,24),new THREE.Vector3(8,4,-8),new THREE.Vector3(-6,7,-56)];
+scene.add(mon);const MON_SPAWN=[new THREE.Vector3(0,0,13),new THREE.Vector3(0,0,-8),new THREE.Vector3(-6,7,-56)];
 const maw=new THREE.Group();
 const cavity=new THREE.Mesh(new THREE.BoxGeometry(.7,.5,.12),psxMat(plainT,0x0c0000,.15));maw.add(cavity);
 const jaw=new THREE.Mesh(new THREE.BoxGeometry(.66,.1,.1),psxMat(plainT,0x140606,.25));jaw.position.set(0,-.22,.04);maw.add(jaw);
@@ -317,7 +352,7 @@ const scares=[
 scares.forEach(s=>{s.at=s.z-Math.random()*s.span;s.done=false;s.armed=false;s.wait=0;s.silenced=false;});
 let blackT=0,stepT=0;function blackout(s){blackT=s;}
 function win(){won=true;paused=true;chime(110,6,.5);setTimeout(()=>chime(110,6,.4),1500);
- $('wintext').innerHTML=`Я дёрнула верёвку. Колокол ударил так, что задрожал весь карьер.<br><br>Тварь за моей спиной замерла и осыпалась серой пылью — вместе с больничным халатом.<br><br>Из темноты колокольни вышла девочка в больничной рубашке. Лида. Ей всё ещё восемь.<br>Она взяла меня за руку — пальцы ледяные.<br><br>«Спасибо, Аня. Теперь твоя очередь звонить. Ещё тридцать лет».<br><br>Её шаги затихли на обломках моста. Я осталась.<br>Колокол слышно по ночам до сих пор.<br><br><b>КОНЕЦ</b><br><br><small style="font-size:12px;color:#aaa">Титры. 3D-модели: elbolilloduro — Characters PSX, PSX Models Pack 3, Exploration Objects, Buildings, Trailer Park, Diner (CC0); GGBot — PSX Style Cars (CC0). Звуки шагов: Hazardpay — 40 Free PSX Crunchy Footsteps (royalty free). Код, сюжет и синтез звука — оригинальные.</small><br><small>Записки: ${score}/${notes.length} · Смертей: ${deaths}${score==notes.length?'<br>Ты прочла всё. Ты знала, на что идёшь.':''}</small>`;
+ $('wintext').innerHTML=`Я дёрнула верёвку. Колокол ударил так, что задрожал весь карьер.<br><br>Тварь за моей спиной замерла и осыпалась серой пылью — вместе с больничным халатом.<br><br>Из темноты колокольни вышла девочка в больничной рубашке. Лида. Ей всё ещё восемь.<br>Она взяла меня за руку — пальцы ледяные.<br><br>«Спасибо, Аня. Теперь твоя очередь звонить. Ещё тридцать лет».<br><br>Её шаги затихли в конце улицы. Я осталась.<br>Колокол слышно по ночам до сих пор.<br><br><b>КОНЕЦ</b><br><br><small style="font-size:12px;color:#aaa">Титры. 3D-модели: elbolilloduro — Characters PSX, PSX Models Pack 3, Exploration Objects, Buildings, Trailer Park, Diner (CC0); GGBot — PSX Style Cars (CC0). Звуки шагов: Hazardpay — 40 Free PSX Crunchy Footsteps (royalty free). Код, сюжет и синтез звука — оригинальные.</small><br><small>Записки: ${score}/${notes.length} · Смертей: ${deaths}${score==notes.length?'<br>Ты прочла всё. Ты знала, на что идёшь.':''}</small>`;
  $('win').style.display='flex';}
 $('again').onclick=()=>location.reload();
 
@@ -365,23 +400,34 @@ Promise.all(['anya','monster','props','buildings','cars','explore'].map(n=>loadG
   // Rig faces +X. Object3D.lookAt points the group's +Z at the target, so -90° yaw turns the face toward the player.
   monster.rotation.y=-Math.PI/2;findBones(monster,monBones);mb.children.slice().forEach(c=>c.visible=false);mb.add(monster);
   mon.updateWorldMatrix(true,true);const hp0=new THREE.Vector3();monBones.Head.getWorldPosition(hp0);mon.worldToLocal(hp0);monHeadLocal.copy(hp0);}
- // set dressing: hospital beds & furniture from "Paquete de modelos PSX 3", diner & trailer-park props
- // props face the path (player approaches from +Z). Long beds run across the pad so the walkway stays clear.
- place('props','Bed',-3.2,0,-1.6,Math.PI/2);place('props','Bed_03',3.1,0,-2.2,-.4);place('props','Lamps_01',3.6,0,3.2,0);place('props','diner_Garbage_bag',-3.6,0,3.1,.6);
+ // street: fences, trash, a dumpster and a fallen lamp. Ward furniture stays on the hall floor.
+ place('props','diner_Fence',-5.7,0,6,0,.72);place('props','diner_Fence',-5.7,0,-2,0,.68);place('props','diner_Fence',5.7,0,2,0,.7);place('props','diner_Fence',5.7,0,-11,0,.64);
+ place('props','diner_Fence',-2.2,0,-5.5,Math.PI/2,.4);
+ place('props','diner_Dumpster',-1.8,0,-16.1,.35,.63);place('props','diner_Garbage_bag',2.4,0,2.6,.5);place('props','diner_Garbage_bag_01',-2.8,0,-8.4,.8);
+ place('props','diner_Garbage_bag',4.2,0,-6.5,1.1);place('props','diner_Chair',-4.4,0,1.4,.6);place('props','trailer_Armchair',4.3,0,-12.2,2.4);
+ place('props','Lamps_01',-4.6,0,-20.2,.4);place('props','diner_Chair',1.2,2,-19.2,1.2,.9);
  place('props','Bed_06',2.6,2.9,-32.2,Math.PI/2);place('props','Cajonera',-3.1,2.9,-27.2,Math.PI);place('props','diner_Chair',-2.2,2.9,-33.2,0);place('props','diner_Fence',3.55,2.9,-30.2,0);place('props','diner_Garbage_bag',-1.5,2.9,-31.4,.4);
  place('props','trailer_Armchair',-2.6,7.1,-65.6,.6);place('props','Bed',2.4,7.1,-61.2,Math.PI/2);place('props','diner_Dumpster',3.1,7.1,-66.4,Math.PI);place('props','diner_Garbage_bag_01',1.1,7.1,-67.1,.4);place('props','diner_Chair',-2.7,7.1,-66.5,.7);
  place('props','trailer_Antenna_01',-2.8,11.1,-97.2,0);place('explore','recorder',-.7,11.1,-93.2,-Math.PI/2,1.4);place('explore','spiritbox',2.3,7.1,-61.6,.8,1.4);
  // clock face is the thin X axis; -90° yaw turns that face toward +Z (the path). Mounted on the tower front.
  const clock=grab('props','trailer_Clock');if(clock){clock.rotation.y=-Math.PI/2;clock.scale.setScalar(1.6);clock.position.set(0,3.35,2.2);tower.add(clock);}
- // ruins stand beside the path, upright, base in the mist rather than under the void plane. Facades face along Z.
- [['Building_03',-18,-1,-20,.15,.34],['Building_08',18,-.6,-52,-.12,.32],['Building_09',-18,-.8,-80,.1,.3],['Building_08',16,-1,12,.18,.3]].forEach(([n,x,y,z,r,sc])=>place('buildings',n,x,y,z,r,sc,{center:true}));
- // car wrecks: two become platforms, others hang in the void
+ // houses line both sidewalks, long side along the street, front toward the road. Distant shells stay in the fog.
+ function dressBuilding(o,lit){if(!o)return;o.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(o),c=b.getCenter(new THREE.Vector3());
+  const face=c.x>0?b.min.x-.04:b.max.x+.04;const dark=psxMat(plainT,0x100e0c),glow=psxMat(plainT,0xffc56a,1),doorM=psxMat(woodT,0x3a2618);
+  [-1.15,0,1.15].forEach((dz,i)=>{const w=new THREE.Mesh(new THREE.BoxGeometry(.08,.55,.46),lit&&i==1?glow:dark);w.position.set(face,c.y+.55,c.z+dz);scene.add(w);
+   const w2=new THREE.Mesh(new THREE.BoxGeometry(.08,.48,.42),dark);w2.position.set(face,c.y-.55,c.z+dz);scene.add(w2);});
+  const door=new THREE.Mesh(new THREE.BoxGeometry(.1,1.35,.62),doorM);door.position.set(face,b.min.y+.68,c.z+1.85);scene.add(door);}
+ HOUSES.forEach(([n,x,z,ry,sc],i)=>{const o=place('buildings',n,x,0,z,ry,sc,{center:true});dressBuilding(o,i%2==0);
+  if(i==1&&o){o.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(o),c=b.getCenter(new THREE.Vector3());place('props','trailer_Antenna_01',c.x,b.max.y,c.z,.4,.75);}});
+ [['Building_08',16,-52,-.4,.3],['Building_09',-16,-78,.2,.28]].forEach(([n,x,z,ry,sc])=>place('buildings',n,x,-1,z,ry,sc,{center:true}));
+ // two cars are the collapsed-ward platforms; the street wrecks sit on the asphalt
  const carPlat=(name,pi,ry)=>{const p=plats[pi];const o=grab('cars',name);if(!o)return;o.rotation.y=ry;scene.add(o);o.updateMatrixWorld(true);
   const b=new THREE.Box3().setFromObject(o),sz=b.getSize(new THREE.Vector3());const top=p.m.position.y+p.h/2;
   o.position.set(p.m.position.x,top-sz.y,p.m.position.z);p.m.visible=false;p.w=Math.min(sz.x,3.2);p.d=Math.min(sz.z,3.2);p.h=sz.y;p.m.position.y=top-sz.y/2;p.kind='metal';p.car=o;};
  carPlat('car1',8,0);carPlat('car7',11,0.35);
- // wrecks rest in the mist beside the route, nose roughly along the path, a modest roll so they read as crashed not hovering
- [['car4',-9,-18,0.4,0.28,-2.2],['car1',11,-52,0.15,-0.35,-1.6],['car7',-10,-80,0.9,0.32,-1.4]].forEach(([n,x,z,ry,rz,y])=>place('cars',n,x,y,z,ry,1,{rz}));
+ place('cars','car1',1.5,0,-15.2,.12,.53);place('cars','car4',-2.6,0,4.2,.7,.5,{rz:.12});place('cars','car7',2.8,0,-9.4,-.35,.5,{rz:-.18});
+ place('cars','car7',7.2,0,-25.2,1.15,.55,{rz:.35});place('cars','car1',-7.4,0,-25.3,-.9,.5,{rz:-.28});
+ place('cars','car4',-8,-1,-48,.5,.32,{rz:.4});
  window.__assets='ok';window.__dbg={bones,monBones,pose,body,mon,maw,jumpscare:()=>jumpscare(1.2),setAnim:f=>{animChar=f;},setCam:(y,p)=>{camYaw=y;camPitch=p;},setDist:d=>{camDist=d;}};
 });
 const voidJunk=[];
@@ -395,7 +441,7 @@ function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.
  const fy=body.rotation.y,fdx=Math.sin(fy),fdz=Math.cos(fy);
  U.flashDir.value.set(fdx,-.26,fdz).normalize();U.flashPos.value.set(pos.x+fdx*.28,pos.y+1.32,pos.z+fdz*.28);
  const md=mon.position.distanceTo(pos);const danger=Math.max(0,1-md/16)*(monActive?1:.35);post.danger.value+=(danger-post.danger.value)*dt*4;
- U.fogFar.value=80-danger*18;
+ U.fogFar.value=54-danger*12;
  if(AC&&started&&!won&&!scaring){heartT-=dt;if(heartT<=0&&md<22){thump(.2+danger*.55);heartT=1.35-danger*.7;}}
  if(scaring)updateScare(dt);
  renderFrame();
