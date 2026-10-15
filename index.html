@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Санаторий «Рассвет»</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;font-family:monospace}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;image-rendering:pixelated;display:block}
+#hud{position:fixed;top:8px;left:10px;color:#c9b98a;font-size:20px;text-shadow:2px 2px #000;pointer-events:none}
+#hint{position:fixed;bottom:8px;left:0;right:0;text-align:center;color:#ccc;font-size:13px;text-shadow:1px 1px #000;pointer-events:none}
+#win{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;color:#ddd;font-size:15px;line-height:1.45;text-shadow:2px 2px #400;background:rgba(0,0,0,.88);text-align:center;overflow:auto;padding:20px;box-sizing:border-box}#wintext{max-width:560px}
+#win button{margin-top:16px;font:20px monospace;padding:8px 18px}
+.touch{display:none}
+body.is-touch .touch{display:block}
+body.is-touch #hint{display:none}
+#joy{position:fixed;left:calc(20px + env(safe-area-inset-left));bottom:calc(24px + env(safe-area-inset-bottom));width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35)}
+#knob{position:absolute;left:40px;top:40px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.45)}
+#jump{position:fixed;right:calc(24px + env(safe-area-inset-right));bottom:calc(36px + env(safe-area-inset-bottom));width:90px;height:90px;border-radius:50%;background:rgba(255,80,80,.35);border:2px solid rgba(255,255,255,.5);color:#fff;font-size:16px;line-height:90px;text-align:center}
+#intro,#note{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.92);color:#bfb39a;z-index:5;padding:20px;box-sizing:border-box}
+#intro div,#note div{max-width:560px;font-size:15px;line-height:1.5;white-space:pre-wrap}
+#note{display:none;background:rgba(10,0,0,.85)}#note div{background:#d8cfb0;color:#2a1a10;padding:18px;transform:rotate(-1deg);font-family:serif;font-style:italic}
+#scare{position:fixed;inset:0;display:none;z-index:9;background:#000;align-items:center;justify-content:center}
+#scare canvas{width:min(100vw,100vh);height:min(100vw,100vh);image-rendering:pixelated;position:static}
+#msg{position:fixed;top:40%;left:0;right:0;text-align:center;color:#a02020;font-size:22px;text-shadow:2px 2px #000;pointer-events:none;opacity:0;transition:opacity .6s}
+</style>
+<script type="importmap">{"imports":{"three":"./three.module.js","three/addons/":"./addons/"}}</script>
+</head><body>
+<div id="hud">Записки: <span id="gems">0</span>/<span id="total">0</span></div><div id="msg"></div>
+<div id="hint">WASD/стрелки — движение · Пробел — прыжок · мышь (зажать) или Q/E — камера · не дай ему подойти</div>
+<div id="intro"><div>САНАТОРИЙ «РАССВЕТ»
+1987 год. Лагерь-санаторий над старым карьером закрыли после того, как за одну ночь пропали одиннадцать детей. Среди них была моя сестра Лида.
+
+Тридцать лет спустя мне пришло письмо без обратного адреса. Внутри — детский рисунок: колокольня и надпись «Аня, позвони, и я выйду».
+
+Мост к санаторию давно обрушился. Остались только обломки, висящие над темнотой.
+Собирай записки. Не стой на месте, когда слышишь сердце.
+
+[ Нажми / коснись, чтобы начать — звук включён ]
+
+Ассеты: elbolilloduro (CC0), GGBot (CC0), Hazardpay — шаги. Полные титры — в конце.</div></div>
+<div id="note"><div id="notetext"></div></div>
+<div id="scare"><canvas id="scarec" width="64" height="64"></canvas></div>
+<div id="win"><div id="wintext"></div><button id="again">Ещё раз</button></div>
+<div id="joy" class="touch"><div id="knob"></div></div>
+<div id="jump" class="touch">ПРЫЖОК</div>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const $=id=>document.getElementById(id);
+const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+if(isTouch)document.body.classList.add('is-touch');
+const renderer=new THREE.WebGLRenderer({antialias:false});
+renderer.setPixelRatio(1);document.body.prepend(renderer.domElement);
+const LOW_H=240;const rt=new THREE.WebGLRenderTarget(320,240,{minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});
+const scene=new THREE.Scene();const FOG=new THREE.Color(0x0c120d);scene.background=FOG;
+const camera=new THREE.PerspectiveCamera(60,4/3,0.1,200);
+// ---------- post: tint, noise, vignette, 15-bit quantize + bayer dither
+const postScene=new THREE.Scene(),postCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const post={tex:{value:rt.texture},tint:{value:new THREE.Vector3(1.15,1.3,1.05)},time:{value:0},danger:{value:0}};
+const postMat=new THREE.ShaderMaterial({uniforms:post,vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+fragmentShader:`uniform sampler2D tex;uniform vec3 tint;uniform float time,danger;varying vec2 vUv;
+float bayer(vec2 p){int i=int(mod(p.x,4.))+int(mod(p.y,4.))*4;float m[16]=float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);return m[i]/16.-.5;}
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){vec2 uv=vUv;uv.x+=danger*.006*sin(uv.y*80.+time*30.);vec3 c=texture2D(tex,uv).rgb;
+c*=mix(tint,vec3(1.6,.35,.3),danger*.8);vec2 px=floor(vUv*RES);c+=(h(px+fract(time)*100.)-.5)*(.06+danger*.15);
+float v=distance(vUv,vec2(.5));c*=1.-v*v*(1.4+danger);
+c+=bayer(px)/32.;c=floor(c*31.+.5)/31.;gl_FragColor=vec4(c,1.);}`,defines:{RES:'vec2(320.,240.)'}});
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMat));
+// ---------- PSX material: vertex snapping, affine UVs, gouraud, fog, flicker light
+const U={snap:{value:new THREE.Vector2(160,120)},fogCol:{value:FOG},lightDir:{value:new THREE.Vector3(.3,1,.5).normalize()},bright:{value:1},fogNear:{value:5},fogFar:{value:30}};
+function psxMat(tex,color=0xffffff,emis=0){return new THREE.ShaderMaterial({uniforms:{map:{value:tex},col:{value:new THREE.Color(color)},emis:{value:emis},...U},
+vertexShader:`#include <common>
+#include <skinning_pars_vertex>
+uniform vec2 snap;uniform vec3 lightDir;uniform float bright,fogNear,fogFar;varying vec2 vUvW;varying float vW,vL,vFog;
+void main(){
+#include <beginnormal_vertex>
+#include <skinbase_vertex>
+#include <skinnormal_vertex>
+#include <begin_vertex>
+#include <skinning_vertex>
+vec4 mv=modelViewMatrix*vec4(transformed,1.);vec4 p=projectionMatrix*mv;
+p.xy=floor(p.xy/p.w*snap+.5)/snap*p.w;gl_Position=p;
+vec3 n=normalize(mat3(modelMatrix)*objectNormal);vL=(.4+.8*max(dot(n,lightDir),0.))*bright;
+vUvW=uv*p.w;vW=p.w;vFog=smoothstep(fogNear,fogFar,-mv.z);}`,
+fragmentShader:`uniform sampler2D map;uniform vec3 col;uniform float emis;uniform vec3 fogCol;varying vec2 vUvW;varying float vW,vL,vFog;
+void main(){vec3 c=texture2D(map,vUvW/vW).rgb*col*mix(vL,1.,emis);gl_FragColor=vec4(mix(c,fogCol,vFog*(1.-emis*.5)),1.);}`});}
+function ptex(size,fn){const c=document.createElement('canvas');c.width=c.height=size;const g=c.getContext('2d');fn(g,size);
+const t=new THREE.CanvasTexture(c);t.magFilter=t.minFilter=THREE.NearestFilter;t.generateMipmaps=false;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;return t;}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const px=(g,x,y,r,gg,b)=>{g.fillStyle=`rgb(${r|0},${gg|0},${b|0})`;g.fillRect(x,y,1,1);};
+const tileT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){let v=rnd(.6,1);if(x%8==0||y%8==0)v*=.4;const dirt=Math.random()<.08?.4:1;px(g,x,y,150*v*dirt,155*v*dirt,135*v*dirt);}
+ for(let k=0;k<6;k++){g.fillStyle='rgba(70,0,0,.6)';g.fillRect(rnd(0,s)|0,rnd(0,s)|0,rnd(1,4)|0,rnd(1,5)|0);}});
+const woodT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.7,1)*(.75+.25*Math.sin(x*.9+Math.sin(y*.3)*2))*(y%8==0?.4:1);px(g,x,y,95*v,65*v,40*v);}});
+const rustT=ptex(32,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.5,1);px(g,x,y,110*v,55*v,30*v);}});
+const paperT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.85,1);px(g,x,y,220*v,205*v,170*v);}for(let y=3;y<14;y+=2){g.fillStyle='#3a2a20';g.fillRect(2,y,rnd(6,12)|0,1);}});
+const plainT=ptex(8,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.8,1)*255;px(g,x,y,v,v,v);}});
+const skinT=ptex(16,(g,s)=>{for(let y=0;y<s;y++)for(let x=0;x<s;x++){const v=rnd(.5,1);px(g,x,y,60*v,55*v,50*v);}});
+// ---------- level
+const plats=[];
+function boxUV(geo,w,h,d){const uv=geo.attributes.uv;for(let i=0;i<uv.count;i++){const f=Math.floor(i/4);const sx=f<2?d:w,sy=(f==2||f==3)?d:h;uv.setXY(i,uv.getX(i)*sx/4,uv.getY(i)*sy/4);}}
+function plat(x,y,z,w,h,d,tex=woodT,mov=null){const geo=new THREE.BoxGeometry(w,h,d,Math.ceil(w/2),1,Math.ceil(d/2));boxUV(geo,w,h,d);
+const m=new THREE.Mesh(geo,psxMat(tex));m.position.set(x,y,z);m.rotation.y=0;scene.add(m);const p={m,w,h,d,mov,delta:0,kind:tex===woodT?'wood':tex===rustT?'metal':'concrete'};if(mov)mov.base=m.position[mov.axis];plats.push(p);return p;}
+// section 1 — broken bridge
+plat(0,-1,0,10,2,10,tileT);
+plat(0,0,-9,3,1,3);plat(3,.8,-14,3,1,3);plat(0,1.6,-19,3,1,3,rustT,{axis:'x',amp:2.5,sp:.9});plat(-1,2.2,-24,3,1,3);
+plat(0,2.4,-30,8,1,8,tileT);
+// section 2 — collapsed ward
+plat(5,3,-36,2.5,1,2.5,rustT);plat(9,3.8,-40,2.5,1,2.5,woodT,{axis:'z',amp:2,sp:1.1});plat(13,4.6,-44,2.5,1,2.5);plat(13,5.4,-49.5,2.5,1,2.5,rustT);
+plat(9,6,-54,3,1,3,woodT,{axis:'x',amp:2.5,sp:.7});plat(4,6.6,-59,3,1,3);plat(0,6.6,-64,8,1,8,tileT);
+// section 3 — to the bell tower
+plat(-5,7.4,-69,2.2,1,2.2,rustT);plat(-9,8.2,-73,2.2,1,2.2);plat(-9,9,-78.5,2.2,1,2.2,rustT,{axis:'x',amp:2.5,sp:1.3});plat(-5,9.8,-83,2.2,1,2.2);
+plat(0,10.6,-87.5,2.5,1,2.5,woodT,{axis:'z',amp:1.2,sp:1.5});plat(0,10.6,-95,8,1,8,tileT);
+const CPS=[new THREE.Vector3(0,0,2),new THREE.Vector3(0,2.9,-28),new THREE.Vector3(0,7.1,-62)];
+// decor: broken pillars, beds, rails, crosses in the void
+for(let i=0;i<40;i++){const p=new THREE.Mesh(new THREE.CylinderGeometry(rnd(.4,1.2),rnd(.8,1.6),rnd(10,30),5),psxMat(tileT,0x707a70));p.position.set(rnd(-30,35)+(Math.random()<.5?-14:14),-12+rnd(-8,6),rnd(-110,20));p.rotation.z=rnd(-.3,.3);scene.add(p);}
+function deco(x,y,z){const g=new THREE.Group();const frame=new THREE.Mesh(new THREE.BoxGeometry(1,.15,2),psxMat(rustT));frame.position.y=.5;
+const mat=new THREE.Mesh(new THREE.BoxGeometry(.9,.15,1.8),psxMat(paperT,0x998877));mat.position.y=.63;g.add(frame,mat);
+for(const [a,b] of [[-.45,-.95],[.45,-.95],[-.45,.95],[.45,.95]]){const l=new THREE.Mesh(new THREE.BoxGeometry(.08,.5,.08),psxMat(rustT));l.position.set(a,.25,b);g.add(l);}g.position.set(x,y,z);g.rotation.y=rnd(-1,1);scene.add(g);}
+
+// lamps (flicker)
+const lamps=[];for(const [x,y,z] of [[3,0,2],[-3,2.9,-30],[3,7.1,-64],[-3,11.1,-93]]){const pole=new THREE.Mesh(new THREE.BoxGeometry(.12,3,.12),psxMat(rustT));pole.position.set(x,y+1.5,z);
+const b=new THREE.Mesh(new THREE.BoxGeometry(.35,.25,.35),psxMat(plainT,0xffe0a0,1));b.position.set(x,y+3,z);scene.add(pole,b);lamps.push(b);}
+const voidM=new THREE.Mesh(new THREE.PlaneGeometry(300,300,24,24),psxMat(skinT,0x201010,.3));voidM.rotation.x=-Math.PI/2;voidM.position.y=-20;scene.add(voidM);
+// bell tower
+const tower=new THREE.Group();
+for(const [x,z] of [[-2,-2],[2,-2],[-2,2],[2,2]]){const c=new THREE.Mesh(new THREE.BoxGeometry(.4,5,.4),psxMat(woodT));c.position.set(x,2.5,z);tower.add(c);}
+const roof=new THREE.Mesh(new THREE.ConeGeometry(3.2,2.5,4),psxMat(rustT,0x664444));roof.position.y=6.2;roof.rotation.y=Math.PI/4;tower.add(roof);
+const bell=new THREE.Mesh(new THREE.CylinderGeometry(.5,1,1.3,7,1,true),psxMat(rustT,0xbb9955,.2));bell.material.side=THREE.DoubleSide;bell.position.y=4.2;tower.add(bell);
+const rope=new THREE.Mesh(new THREE.BoxGeometry(.05,3,.05),psxMat(plainT,0x887755));rope.position.y=2;tower.add(rope);
+tower.position.set(0,11.1,-96);scene.add(tower);const GOAL=new THREE.Vector3(0,11.1,-96);
+// notes (diary)
+const NOTES=[
+['Дневник медсестры Г. Сомовой. 3 июня 1987.','Главврач Курганов запретил выпускать детей после отбоя. Говорит, карьер «дышит». Ночью я слышала снизу голос. Он считал. Медленно. До одиннадцати.'],
+['11 июня.','Новенькая, Лида, весь день рисует колокольню. Говорит, её зовёт мальчик из ямы. Я спросила, какой он. «У него нет лица, тётя Галя. Только рот».'],
+['19 июня.','Курганов каждую ночь бьёт в колокол. Пока звонит — оно спит. Он сказал, что колоколу нужна плата. Я не спросила какая. Я боялась ответа.'],
+['27 июня.','В подвале нашла список. Одиннадцать фамилий, напротив каждой — крестик. Лида последняя, без крестика. Внизу приписка его рукой: «Чтобы спало ещё тридцать лет».'],
+['1 июля.','Я спрятала Лиду в колокольне. Курганова нашли у карьера — без глаз. Колокол молчит. Оно проснулось и ходит по обломкам моста. Высокое. Оно останавливается, когда я дышу тише.'],
+['(почерк дрожит)','Я больше не Галина. Оно носит моё лицо, как халат. Если ты читаешь это — оно уже за твоей спиной. Не оборачивайся. Беги к колоколу.'],
+['(детским почерком, свежими чернилами)','Аня. Тридцать лет прошли. Колоколу снова нужна плата. Прости, что позвала тебя. Мне так долго было холодно.']];
+const notePos=[[0,.9,-9],[-1,3,-24],[0,3.3,-33],[13,5.5,-44],[4,7.5,-59],[-9,9.1,-73],[-5,10.7,-83]];
+const notes=notePos.map((p,i)=>{const n=new THREE.Mesh(new THREE.PlaneGeometry(.5,.65),psxMat(paperT,0xffffff,.8));n.material.side=THREE.DoubleSide;n.position.set(...p);n.userData={y:p[1]+.3,i};scene.add(n);return n;});
+$('total').textContent=notes.length;
+// player (built from primitives) — Аня: тёмная куртка, фонарик
+const player=new THREE.Group();const body=new THREE.Group();player.add(body);
+const add=(par,geo,c,x,y,z,e=0)=>{const m=new THREE.Mesh(geo,psxMat(plainT,c,e));m.position.set(x,y,z);par.add(m);return m;};
+add(body,new THREE.BoxGeometry(.55,.6,.35),0x3a4a3a,0,.75,0);add(body,new THREE.BoxGeometry(.42,.42,.42),0xd8b898,0,1.28,0);
+add(body,new THREE.BoxGeometry(.48,.25,.48),0x2a1a10,0,1.47,-.03);add(body,new THREE.BoxGeometry(.48,.4,.12),0x2a1a10,0,1.2,-.22);
+add(body,new THREE.BoxGeometry(.07,.07,.04),0,-.1,1.3,.21);add(body,new THREE.BoxGeometry(.07,.07,.04),0,.1,1.3,.21);
+const legL=add(body,new THREE.BoxGeometry(.18,.45,.18),0x222233,-.13,.25,0),legR=add(body,new THREE.BoxGeometry(.18,.45,.18),0x222233,.13,.25,0);
+const armL=add(body,new THREE.BoxGeometry(.13,.45,.13),0x3a4a3a,-.36,.75,0),armR=add(body,new THREE.BoxGeometry(.13,.45,.13),0x3a4a3a,.36,.75,0);
+add(body,new THREE.BoxGeometry(.1,.1,.25),0xffffaa,.36,.55,.15,1);
+scene.add(player);
+const shadow=new THREE.Mesh(new THREE.CircleGeometry(.4,6),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.6}));shadow.rotation.x=-Math.PI/2;scene.add(shadow);
+// monster: высокая худая тварь, рот вместо лица
+const mon=new THREE.Group();const mb=new THREE.Group();mon.add(mb);
+add(mb,new THREE.BoxGeometry(.5,1.6,.3),0x2a2622,0,1.9,0);add(mb,new THREE.BoxGeometry(.3,.3,.3),0x2a2622,0,1.0,0);
+const mhead=add(mb,new THREE.BoxGeometry(.5,.7,.45),0xb8b0a0,0,3.0,0);
+add(mb,new THREE.BoxGeometry(.35,.4,.05),0x200000,0,2.9,.24,1);add(mb,new THREE.BoxGeometry(.06,.06,.04),0xff2010,-.13,3.2,.24,1);add(mb,new THREE.BoxGeometry(.06,.06,.04),0xff2010,.13,3.2,.24,1);
+const marmL=add(mb,new THREE.BoxGeometry(.12,2.2,.12),0x2a2622,-.4,1.6,0),marmR=add(mb,new THREE.BoxGeometry(.12,2.2,.12),0x2a2622,.4,1.6,0);
+add(mb,new THREE.BoxGeometry(.12,1.2,.12),0x2a2622,-.15,.4,0);add(mb,new THREE.BoxGeometry(.12,1.2,.12),0x2a2622,.15,.4,0);
+// hospital-gown sheet for the "Галина" look
+add(mb,new THREE.BoxGeometry(.6,1.2,.34),0x8a9a90,0,1.9,0);
+scene.add(mon);const MON_SPAWN=[new THREE.Vector3(0,1,24),new THREE.Vector3(8,4,-8),new THREE.Vector3(-6,7,-56)];
+// ---------- audio
+let AC=null,master,heartT=0;
+function initAudio(){if(AC)return;AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.8;master.connect(AC.destination);
+ const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=180;const dg=AC.createGain();dg.gain.value=.12;lp.connect(dg);dg.connect(master);
+ for(const f of [41.2,41.7,61.8]){const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start();}
+ const lfo=AC.createOscillator();lfo.frequency.value=.07;const lg=AC.createGain();lg.gain.value=90;lfo.connect(lg);lg.connect(lp.frequency);lfo.start();
+ const nb=noiseBuf(4);const ns=AC.createBufferSource();ns.buffer=nb;ns.loop=true;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=400;bp.Q.value=.7;const ng=AC.createGain();ng.gain.value=.05;ns.connect(bp);bp.connect(ng);ng.connect(master);ns.start();
+ const l2=AC.createOscillator();l2.frequency.value=.13;const l2g=AC.createGain();l2g.gain.value=250;l2.connect(l2g);l2g.connect(bp.frequency);l2.start();}
+const STEPS={};async function loadSteps(){for(const k of ['concrete','wood','metal']){STEPS[k]=[];for(let i=1;i<=4;i++){try{const r=await fetch(`assets/sfx/${k}_${i}.mp3`);STEPS[k].push(await AC.decodeAudioData(await r.arrayBuffer()));}catch(e){}}}}
+function footstep(kind,vol=.5,rate=1){if(!AC||!STEPS[kind]||!STEPS[kind].length)return;const b=AC.createBufferSource();b.buffer=STEPS[kind][Math.random()*STEPS[kind].length|0];b.playbackRate.value=rate*rnd(.9,1.1);const g=AC.createGain();g.gain.value=vol;b.connect(g);g.connect(master);b.start();}
+function noiseBuf(sec){const b=AC.createBuffer(1,AC.sampleRate*sec,AC.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b;}
+function env(node,t0,a,peak,dec){const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(peak,t0+a);g.gain.exponentialRampToValueAtTime(.0001,t0+a+dec);node.connect(g);g.connect(master);return g;}
+function thump(vol){if(!AC)return;const t=AC.currentTime;for(const [dt,v] of [[0,1],[.18,.7]]){const o=AC.createOscillator();o.frequency.setValueAtTime(70,t+dt);o.frequency.exponentialRampToValueAtTime(35,t+dt+.15);env(o,t+dt,.01,vol*v,.2);o.start(t+dt);o.stop(t+dt+.3);}}
+function stinger(big=1){if(!AC)return;const t=AC.currentTime;const s=AC.createBufferSource();s.buffer=noiseBuf(2);const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.setValueAtTime(3000,t);f.frequency.exponentialRampToValueAtTime(300,t+1.2);s.connect(f);env(f,t,.01,.6*big,1.4);s.start(t);
+ for(const fr of [440,466,622,880*big]){const o=AC.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(fr,t);o.frequency.linearRampToValueAtTime(fr*.7,t+1.2);env(o,t,.01,.08*big,1.3);o.start(t);o.stop(t+1.5);}}
+function chime(base=220,dur=2.5,vol=.2){if(!AC)return;const t=AC.currentTime;for(const [m,v] of [[1,1],[2.4,.5],[3.9,.3],[.5,.6]]){const o=AC.createOscillator();o.frequency.value=base*m;env(o,t,.005,vol*v,dur);o.start(t);o.stop(t+dur+.1);}}
+// ---------- UI
+let paused=true,started=false;
+function start(){if(started)return;started=true;initAudio();loadSteps();AC.resume&&AC.resume();$('intro').style.display='none';paused=false;flash('Найди колокольню.');}
+$('intro').addEventListener('click',start);$('intro').addEventListener('touchend',e=>{e.preventDefault();start();});
+addEventListener('keydown',e=>{if(!started&&(e.code=='Space'||e.code=='Enter'))start();});
+function showNote(i){paused=true;$('notetext').textContent=`${NOTES[i][0]}\n\n${NOTES[i][1]}\n\n[ нажми / коснись ]`;$('note').style.display='flex';noteOpenAt=performance.now();}
+let noteOpenAt=0;function closeNote(){if(performance.now()-noteOpenAt<400)return;$('note').style.display='none';paused=false;}
+$('note').addEventListener('click',closeNote);$('note').addEventListener('touchend',e=>{e.preventDefault();closeNote();});
+addEventListener('keydown',e=>{if($('note').style.display=='flex'&&(e.code=='Space'||e.code=='Enter'||e.code=='KeyE'))closeNote();});
+let msgT;function flash(t){$('msg').textContent=t;$('msg').style.opacity=1;clearTimeout(msgT);msgT=setTimeout(()=>$('msg').style.opacity=0,2500);}
+// jumpscare face (procedural, 64x64)
+function drawFace(){const g=$('scarec').getContext('2d');for(let y=0;y<64;y++)for(let x=0;x<64;x++){const dx=(x-32)/22,dy=(y-30)/28;let v=dx*dx+dy*dy<1?rnd(150,200):rnd(0,20);
+ const eye=(Math.hypot(x-22,y-22)<5||Math.hypot(x-42,y-22)<5);const mouth=Math.abs(x-32)<11-Math.abs(y-44)*.6&&y>32&&y<56;if(eye||mouth)v=rnd(0,15);
+ const r=v,gg=v*.92,b=v*.85;px(g,x,y,r,gg,b);if((Math.hypot(x-22,y-22)<1.5||Math.hypot(x-42,y-22)<1.5))px(g,x,y,255,20,10);if(mouth&&y%5==0&&Math.random()<.7)px(g,x,y,220,210,190);}}
+let scaring=false;function jumpscare(dur=900,then){scaring=true;drawFace();stinger(1.4);const el=$('scare');el.style.display='flex';let k=0;
+ const iv=setInterval(()=>{el.firstChild&&(el.querySelector('canvas').style.transform=`scale(${1+Math.random()*.3}) translate(${rnd(-10,10)}px,${rnd(-10,10)}px)`);if(++k%3==0)drawFace();},40);
+ setTimeout(()=>{clearInterval(iv);el.style.display='none';scaring=false;then&&then();},dur);}
+// ---------- input
+const keys={};let jumpBuf=0;addEventListener('keydown',e=>{keys[e.code]=true;if(e.code=='Space'){jumpBuf=.15;e.preventDefault();}});addEventListener('keyup',e=>keys[e.code]=false);
+let camYaw=0,camPitch=.3;let drag=false,lx=0,ly=0;renderer.domElement.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});addEventListener('mouseup',()=>drag=false);
+addEventListener('mousemove',e=>{if(drag){camYaw-=(e.clientX-lx)*.008;camPitch=Math.min(1.2,Math.max(.05,camPitch+(e.clientY-ly)*.005));lx=e.clientX;ly=e.clientY;}});
+const joy={x:0,y:0,id:null};const joyEl=$('joy'),knob=$('knob');
+joyEl.addEventListener('touchstart',e=>{e.preventDefault();joy.id=e.changedTouches[0].identifier;moveJoy(e.changedTouches[0]);},{passive:false});
+function moveJoy(t){const r=joyEl.getBoundingClientRect();let dx=t.clientX-(r.left+r.width/2),dy=t.clientY-(r.top+r.height/2);const l=Math.hypot(dx,dy),mx=55;if(l>mx){dx*=mx/l;dy*=mx/l;}joy.x=dx/mx;joy.y=dy/mx;knob.style.transform=`translate(${dx}px,${dy}px)`;}
+$('jump').addEventListener('touchstart',e=>{e.preventDefault();jumpBuf=.15;},{passive:false});
+const swipe={};renderer.domElement.addEventListener('touchstart',e=>{e.preventDefault();for(const t of e.changedTouches)swipe[t.identifier]={x:t.clientX,y:t.clientY};},{passive:false});
+addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches){if(t.identifier===joy.id)moveJoy(t);else if(swipe[t.identifier]){const s=swipe[t.identifier];camYaw-=(t.clientX-s.x)*.01;camPitch=Math.min(1.2,Math.max(.05,camPitch+(t.clientY-s.y)*.006));s.x=t.clientX;s.y=t.clientY;}}},{passive:false});
+const tend=e=>{for(const t of e.changedTouches){if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;knob.style.transform='';}delete swipe[t.identifier];}};
+addEventListener('touchend',tend);addEventListener('touchcancel',tend);
+document.addEventListener('gesturestart',e=>e.preventDefault());document.addEventListener('dblclick',e=>e.preventDefault());
+function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);const lw=Math.round(LOW_H*w/h);rt.setSize(lw,LOW_H);
+postMat.defines.RES=`vec2(${lw}.,${LOW_H}.)`;postMat.needsUpdate=true;U.snap.value.set(lw/2,LOW_H/2);camera.aspect=w/h;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+// ---------- game state
+const pos=CPS[0].clone(),vel=new THREE.Vector3();let grounded=false,ground=null,score=0,won=false,coyote=0,cp=0,deaths=0;
+const R=.3,H=1.7,SPD=6;let monActive=false,monSpeed=3.4;
+function resetMonster(){mon.position.copy(MON_SPAWN[cp]);monActive=false;}
+function die(){if(scaring)return;deaths++;vel.set(0,0,0);jumpscare(1000,()=>{pos.copy(CPS[cp]);resetMonster();flash(['Оно улыбается.','Ещё раз.','Ты не первая.','Тише...'][deaths%4]);});}
+resetMonster();
+const scares=[{z:-12,done:false,f:()=>{blackout(.6);mon.position.set(pos.x+rnd(-2,2),pos.y,pos.z-6);stinger(.7);}},
+ {z:-40,done:false,f:()=>{stinger(.8);flash('Не оборачивайся.');blackout(.4);}},
+ {z:-70,done:false,f:()=>{jumpscare(500);}},{z:-85,done:false,f:()=>{blackout(1.2);mon.position.set(pos.x,pos.y,pos.z+4);monActive=true;stinger(1);}}];
+let blackT=0,stepT=0;function blackout(s){blackT=s;}
+function win(){won=true;paused=true;chime(110,6,.5);setTimeout(()=>chime(110,6,.4),1500);
+ $('wintext').innerHTML=`Я дёрнула верёвку. Колокол ударил так, что задрожал весь карьер.<br><br>Тварь за моей спиной замерла и осыпалась серой пылью — вместе с больничным халатом.<br><br>Из темноты колокольни вышла девочка в больничной рубашке. Лида. Ей всё ещё восемь.<br>Она взяла меня за руку — пальцы ледяные.<br><br>«Спасибо, Аня. Теперь твоя очередь звонить. Ещё тридцать лет».<br><br>Её шаги затихли на обломках моста. Я осталась.<br>Колокол слышно по ночам до сих пор.<br><br><b>КОНЕЦ</b><br><br><small style="font-size:12px;color:#aaa">Титры. 3D-модели: elbolilloduro — Characters PSX, PSX Models Pack 3, Exploration Objects, Buildings, Trailer Park, Diner (CC0); GGBot — PSX Style Cars (CC0). Звуки шагов: Hazardpay — 40 Free PSX Crunchy Footsteps (royalty free). Код, сюжет и синтез звука — оригинальные.</small><br><small>Записки: ${score}/${notes.length} · Смертей: ${deaths}${score==notes.length?'<br>Ты прочла всё. Ты знала, на что идёшь.':''}</small>`;
+ $('win').style.display='flex';}
+$('again').onclick=()=>location.reload();
+
+// ---------- external CC0 assets (itch.io packs), converted to GLB
+const loader=new GLTFLoader();const loadGLB=u=>new Promise(r=>loader.load(u,g=>r(g.scene),undefined,e=>{console.warn('asset failed',u,e);r(null);}));
+function psxify(root,tint=0xffffff){root.traverse(o=>{if(o.isMesh){const om=Array.isArray(o.material)?o.material[0]:o.material;let map=om&&om.map;
+ if(map){map.magFilter=map.minFilter=THREE.NearestFilter;map.generateMipmaps=false;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.needsUpdate=true;}
+ const c=om&&om.color?om.color.clone().multiply(new THREE.Color(tint)):new THREE.Color(tint);o.material=psxMat(map||plainT,c.getHex());o.frustumCulled=!o.isSkinnedMesh;}});return root;}
+function fit(obj,height){obj.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(obj),sz=b.getSize(new THREE.Vector3());const k=height/sz.y;obj.scale.multiplyScalar(k);
+ obj.updateMatrixWorld(true);const b2=new THREE.Box3().setFromObject(obj);obj.position.y-=b2.min.y;return obj;}
+const sets={};function grab(lib,name){const o=sets[lib]&&sets[lib].getObjectByName(name);return o?o.clone():null;}
+function place(lib,name,x,y,z,ry=0,sc=1){const o=grab(lib,name);if(!o)return null;o.position.set(x,y,z);o.rotation.y=ry;o.scale.setScalar(sc);scene.add(o);return o;}
+const bones={};let animChar=()=>{};const monBones={};
+function findBones(root,dst){root.traverse(o=>{if(o.isBone){const k=o.name.replace(/^mixamorig:?/,'');dst[k]=o;o.userData.rest=o.quaternion.clone();}});}
+const qtmp=new THREE.Quaternion(),etmp=new THREE.Euler();
+function pose(B,name,x,y,z){const b=B[name];if(!b)return;etmp.set(x,y,z);b.quaternion.copy(b.userData.rest).multiply(qtmp.setFromEuler(etmp));}
+Promise.all(['anya','monster','props','buildings','cars','explore'].map(n=>loadGLB(`assets/models/${n}.glb`))).then(([anya,monster,props,buildings,cars,explore])=>{
+ Object.assign(sets,{props:props&&psxify(props),buildings:buildings&&psxify(buildings,0x8a8f88),cars:cars&&psxify(cars,0xa08070),explore:explore&&psxify(explore)});
+ if(anya){psxify(anya);fit(anya,1.65);anya.rotation.y=0;findBones(anya,bones);body.children.slice().forEach(c=>c.visible=false);body.add(anya);
+  const fl=grab('explore','flashlight');if(fl&&bones.RightHand){fl.scale.setScalar(1/anya.scale.x*.9);fl.rotation.set(-Math.PI/2,0,0);bones.RightHand.add(fl);}
+  animChar=(t,gr,hs)=>{const k=Math.min(1,hs/SPD),sw=gr?Math.sin(t*12)*k*.6:.35;
+   pose(bones,'LeftArm',gr?sw*.8:-1.0,0,gr?-.12:-.5);pose(bones,'RightArm',gr?-sw*.8:-1.0,0,gr?.12:.5);
+   pose(bones,'LeftUpLeg',sw,0,0);pose(bones,'RightUpLeg',-sw,0,0);pose(bones,'LeftLeg',gr?-Math.max(0,-sw)*.9:-.7,0,0);pose(bones,'RightLeg',gr?-Math.max(0,sw)*.9:-.7,0,0);
+   pose(bones,'Spine',.08+(gr?0:-.1),0,0);};}
+ if(monster){psxify(monster,0xb0a090);fit(monster,2.9);findBones(monster,monBones);mb.children.slice().forEach(c=>c.visible=false);mb.add(monster);}
+ // set dressing: hospital beds & furniture from "Paquete de modelos PSX 3", diner & trailer-park props
+ place('props','Bed',-3,0,-2,.4);place('props','Bed_03',3,0,-3,-.3);place('props','Lamps_01',3.5,0,3.5);place('props','diner_Garbage_bag',-3.5,0,3,1);
+ place('props','Bed_06',2.4,2.9,-32,1.2);place('props','Cajonera',-3,2.9,-27.5,0);place('props','diner_Chair',-2,2.9,-33,2.2);place('props','diner_Fence',3.7,2.9,-29,0);
+ place('props','trailer_Armchair',-2.5,7.1,-66,.8);place('props','Bed',2.2,7.1,-61.5,1.4);place('props','diner_Dumpster',2.5,7.1,-66.5,.2);place('props','diner_Garbage_bag_01',1,7.1,-67.2);
+ place('props','trailer_Antenna_01',-3,11.1,-98,0);place('props','trailer_Clock',0,14,-94.1,0);place('explore','recorder',-.6,11.1,-93,0,1.5);place('explore','spiritbox',2.5,7.6,-61.5,0,1.5);
+ // collapsed sanatorium buildings sinking into the void
+ [['Building_03',-34,-30,-40,.3,.9],['Building_08',30,-24,-70,-.5,.9],['Building_09',-28,-22,-95,.9,.8],['Building_08',32,-26,-10,2,.8]].forEach(([n,x,y,z,r,sc])=>{const o=place('buildings',n,x,y,z,r,sc);if(o)o.rotation.z=rnd(-.15,.15);});
+ // car wrecks: two become platforms, others hang in the void
+ const carPlat=(name,pi,ry)=>{const p=plats[pi];const o=grab('cars',name);if(!o)return;o.rotation.y=ry;scene.add(o);o.updateMatrixWorld(true);
+  const b=new THREE.Box3().setFromObject(o),sz=b.getSize(new THREE.Vector3());const top=p.m.position.y+p.h/2;
+  o.position.set(p.m.position.x,top-sz.y,p.m.position.z);p.m.visible=false;p.w=Math.min(sz.x,3.2);p.d=Math.min(sz.z,3.2);p.h=sz.y;p.m.position.y=top-sz.y/2;p.kind='metal';p.car=o;};
+ carPlat('car1',8,0);carPlat('car7',11,Math.PI/4);
+ [['car4',-12,-10,-20,.5],['car1',14,-12,-60,2],['car7',-10,-8,-85,1]].forEach(([n,x,y,z,r])=>{const o=place('cars',n,x,y,z,r);if(o){o.rotation.z=rnd(-.8,.8);o.userData.spin=rnd(-.2,.2);voidJunk.push(o);}});
+ window.__assets='ok';window.__dbg={bones,pose,setAnim:f=>{animChar=f;},setCam:(y,p)=>{camYaw=y;camPitch=p;}};
+});
+const voidJunk=[];
+// ---------- loop
+const clock=new THREE.Clock();let t=0,flick=1;
+const hit=()=>{for(const p of plats){const q=p.m.position;if(pos.x+R>q.x-p.w/2&&pos.x-R<q.x+p.w/2&&pos.z+R>q.z-p.d/2&&pos.z-R<q.z+p.d/2&&pos.y+H>q.y-p.h/2&&pos.y<q.y+p.h/2)return p;}return null;};
+function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);t+=dt;post.time.value=t;
+ // flicker light
+ if(Math.random()<.04)flick=rnd(.15,1);flick+=(1-flick)*dt*3;if(blackT>0){blackT-=dt;flick=.05;}
+ U.bright.value=flick;lamps.forEach((l,i)=>l.visible=flick>.5||(i+Math.floor(t*7))%3==0);
+ const md=mon.position.distanceTo(pos);const danger=Math.max(0,1-md/14)*(monActive?1:.4);post.danger.value+=(danger-post.danger.value)*dt*4;
+ U.fogFar.value=30-danger*12;
+ if(AC&&started&&!won){heartT-=dt;if(heartT<=0&&md<22){thump(.25+danger*.7);heartT=1.3-danger*.9;}}
+ renderFrame();
+ if(paused||scaring)return;
+ for(const p of plats)if(p.mov){const old=p.m.position[p.mov.axis];p.m.position[p.mov.axis]=p.mov.base+Math.sin(t*p.mov.sp)*p.mov.amp;p.delta=p.m.position[p.mov.axis]-old;}
+ for(const p of plats)if(p.car){p.car.position.x=p.m.position.x;p.car.position.z=p.m.position.z;}
+ for(const j of voidJunk)j.rotation.y+=j.userData.spin*dt;
+ if(grounded&&ground&&ground.mov)pos[ground.mov.axis]+=ground.delta;
+ if(keys.KeyQ)camYaw+=2*dt;if(keys.KeyE)camYaw-=2*dt;
+ let ix=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x,iz=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0)+joy.y;
+ const il=Math.hypot(ix,iz);if(il>1){ix/=il;iz/=il;}
+ const s=Math.sin(camYaw),c=Math.cos(camYaw);const mx=ix*c+iz*s,mz=-ix*s+iz*c;
+ const acc=Math.min(1,dt*(grounded?12:4));vel.x+=(mx*SPD-vel.x)*acc;vel.z+=(mz*SPD-vel.z)*acc;
+ if(il>.1)body.rotation.y=Math.atan2(mx,mz);
+ coyote=grounded?.1:coyote-dt;jumpBuf-=dt;if(jumpBuf>0&&coyote>0){vel.y=9;jumpBuf=0;coyote=0;grounded=false;}
+ vel.y-=25*dt;
+ for(const ax of['x','z']){pos[ax]+=vel[ax]*dt;if(hit()){pos[ax]-=vel[ax]*dt;vel[ax]=0;}}
+ const wasGrounded=grounded,fallV=vel.y;pos.y+=vel.y*dt;grounded=false;const p=hit();
+ const wasAir=!wasGrounded;if(p){const top=p.m.position.y+p.h/2;if(vel.y<=0&&pos.y-vel.y*dt>=top-.3){pos.y=top;grounded=true;ground=p;if(wasAir&&fallV<-6)footstep(p.kind,.9,.8);}else{pos.y=p.m.position.y-p.h/2-H;}vel.y=0;}
+ if(pos.y<CPS[cp].y-14){die();return;}
+ player.position.copy(pos);
+ const hs=Math.hypot(vel.x,vel.z);if(grounded&&hs>1){stepT-=dt*hs/SPD;if(stepT<=0){stepT=.32;footstep(ground.kind,.45);}}
+ animChar(t,grounded,hs);
+ const sw=grounded?Math.sin(t*14)*Math.min(1,Math.hypot(vel.x,vel.z)/SPD)*.7:.5;legL.rotation.x=sw;legR.rotation.x=-sw;armL.rotation.x=-sw;armR.rotation.x=sw;
+ let sy=-100;for(const q of plats){const m=q.m.position;if(Math.abs(pos.x-m.x)<q.w/2&&Math.abs(pos.z-m.z)<q.d/2){const top=m.y+q.h/2;if(top<=pos.y+.05&&top>sy)sy=top;}}
+ shadow.visible=sy>-100;shadow.position.set(pos.x,sy+.02,pos.z);
+ // checkpoints
+ for(let i=cp+1;i<CPS.length;i++)if(pos.distanceTo(CPS[i])<3.5){cp=i;resetMonster();chime(330,1.5,.12);flash(['','Палата. Здесь пахнет хлоркой и мокрой землёй.','Здесь кто-то спал. Недавно.'][i]+' (контрольная точка)');}
+ // notes
+ for(const n of notes){if(!n.visible)continue;n.rotation.y+=dt*1.5;n.position.y=n.userData.y+Math.sin(t*2+n.position.x)*.1;
+  if(n.position.distanceTo(pos.clone().setY(pos.y+.8))<1.1){n.visible=false;score++;$('gems').textContent=score;chime(180,2,.15);showNote(n.userData.i);
+   if(n.userData.i==5){setTimeout(()=>{mon.position.set(pos.x-Math.sin(body.rotation.y)*3,pos.y,pos.z-Math.cos(body.rotation.y)*3);monActive=true;},50);}}}
+ // scripted scares
+ for(const sc of scares)if(!sc.done&&pos.z<sc.z){sc.done=true;sc.f();}
+ // monster AI: stalks, then chases when close; floats over the void
+ if(!monActive&&md<15){monActive=true;stinger(.5);flash('Беги.');}
+ if(monActive){const dir=pos.clone().sub(mon.position);dir.y*=.8;const spd=monSpeed+cp*.3+(md>12?2:0);mon.position.addScaledVector(dir.normalize(),spd*dt);
+  if(md>26){resetMonster();}}else{mon.position.y+=Math.sin(t)*.003;}
+ mon.lookAt(pos.x,mon.position.y,pos.z);mhead.rotation.z=Math.sin(t*9)*.25*(monActive?1:.2);if(monBones.LeftArm){const r=monActive?1:.3;pose(monBones,'LeftArm',-1.3*r+Math.sin(t*5)*.2,0,-.2);pose(monBones,'RightArm',-1.3*r+Math.cos(t*5)*.2,0,.2);pose(monBones,'Head',0,0,Math.sin(t*9)*.35*r+.3);pose(monBones,'LeftUpLeg',Math.sin(t*4)*.3*r,0,0);pose(monBones,'RightUpLeg',-Math.sin(t*4)*.3*r,0,0);}marmL.rotation.x=Math.sin(t*5)*.4-.6;marmR.rotation.x=Math.cos(t*5)*.4-.6;
+ mon.visible=!(flick<.3&&Math.random()<.5);
+ if(md<1.1)die();
+ if(pos.distanceTo(GOAL)<2.2)win();
+}
+function renderFrame(){const d=7;camera.position.set(pos.x+Math.sin(camYaw)*Math.cos(camPitch)*d,pos.y+1+Math.sin(camPitch)*d,pos.z+Math.cos(camYaw)*Math.cos(camPitch)*d);
+ const sh=post.danger.value*.08;camera.lookAt(pos.x+rnd(-sh,sh),pos.y+1+rnd(-sh,sh),pos.z);
+ renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCam);}
+loop();window.__ok=true;window.__game={plats,notes:()=>notes.map(n=>n.position.toArray()),goal:GOAL.toArray(),cps:CPS.map(c=>c.toArray()),start,get pos(){return pos;}};
+</script></body></html>
